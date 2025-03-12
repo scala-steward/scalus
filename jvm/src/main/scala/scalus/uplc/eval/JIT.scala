@@ -48,7 +48,7 @@ object JIT {
         }
 
         def asdf(x: Term, env: List[(String, quotes.reflect.Term)], owner: Symbol): Expr[Any] = {
-            println(s"asdf owner: $owner#${owner.hashCode}")
+//            println(s"asdf owner: $owner#${owner.hashCode}")
             x match
                 case Term.Var(name) =>
 //                    Ref(env.find(_._1 == name.name).get._2.symbol).asExprOf[Any]
@@ -60,9 +60,9 @@ object JIT {
                       owner,
                       mtpe,
                       { case (methSym, List(arg1: quotes.reflect.Term)) =>
-                          println(
-                            s"λ $name -> $methSym#${methSym.hashCode}, owner: $owner#${owner.hashCode}"
-                          )
+//                          println(
+//                            s"λ $name -> $methSym#${methSym.hashCode}, owner: $owner#${owner.hashCode}"
+//                          )
                           asdf(term, (name -> arg1) :: env, methSym).asTerm.changeOwner(methSym)
                       }
                     ).asExprOf[Any]
@@ -73,18 +73,18 @@ object JIT {
                 case Term.Force(term) =>
                     val expr = asdf(term, env, owner)
                     '{
-                        println(s"trying to force term" + ${ Expr(term.show) } + ", got expr: " + ${
-                            Expr(expr.show)
-                        })
+//                        println(s"trying to force term" + ${ Expr(term.show) } + ", got expr: " + ${
+//                            Expr(expr.show)
+//                        })
                         val fff = ${ expr }.asInstanceOf[() => Any]
-                        println(s"forced term: " + fff)
+//                        println(s"forced term: " + fff)
                         fff.apply()
                     }
                 case Term.Delay(term) =>
-                    println("Delay")
+//                    println("Delay")
                     '{ () => ${ asdf(term, env, owner) } }
                 case Term.Const(const) =>
-                    println(s"Const: $const")
+//                    println(s"Const: $const")
                     const match
                         case Constant.Integer(value)              => Expr(value)
                         case Constant.ByteString(value)           => Expr(value)
@@ -104,7 +104,7 @@ object JIT {
                     '{ Builtins.equalsByteString.curried }
                 case Term.Builtin(DefaultFun.IfThenElse) =>
                     '{ () => (c: Boolean) => (t: Any) => (f: Any) => Builtins.ifThenElse(c, t, f) }
-                case Term.Builtin(DefaultFun.Trace)   => '{ () => Builtins.trace }
+                case Term.Builtin(DefaultFun.Trace)   => '{ () => (s: String) => (a: Any) => a }
                 case Term.Builtin(DefaultFun.FstPair) => '{ () => () => Builtins.fstPair }
                 case Term.Builtin(DefaultFun.SndPair) => '{ () => () => Builtins.sndPair }
                 case Term.Builtin(DefaultFun.ChooseList) =>
@@ -117,7 +117,7 @@ object JIT {
                 case Term.Builtin(DefaultFun.UnIData)      => '{ Builtins.unIData }
                 case Term.Builtin(DefaultFun.UnBData)      => '{ Builtins.unBData }
                 case Term.Error =>
-                    println("Error")
+//                    println("Error")
                     '{ throw new Exception("Error") }
                 case Term.Constr(tag, args) =>
                     Expr.ofTuple(Expr(tag) -> Expr.ofList(args.map(a => asdf(a, env, owner))))
