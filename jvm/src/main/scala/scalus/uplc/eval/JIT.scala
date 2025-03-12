@@ -1,6 +1,6 @@
 package scalus.uplc.eval
 
-import scalus.builtin.{Builtins, ByteString, Data, given}
+import scalus.builtin.{Builtins, ByteString, Data, PlatformSpecific, given}
 import scalus.uplc.DefaultUni.asConstant
 import scalus.uplc.TermDSL.given
 import scalus.uplc.{Constant, DefaultFun, Term}
@@ -18,10 +18,10 @@ object JIT {
     val uplc: Term = compile:
         ((i: BigInt) => i + 1)(2)
     .toUplc()
+    val ps: PlatformSpecific = scalus.builtin.JVMPlatformSpecific
 
     def embed(x: Term)(using Quotes): Expr[Any] = {
         import quotes.reflect.{Lambda, MethodType, Symbol, ValDef, TypeRepr, asTerm, Ref, Select, Flags}
-        import scalus.builtin.given
 
         given ByteStringToExpr: ToExpr[ByteString] with {
             def apply(x: ByteString)(using Quotes): Expr[ByteString] =
@@ -102,13 +102,14 @@ object JIT {
                 case Term.Builtin(DefaultFun.EqualsInteger) => '{ Builtins.equalsInteger.curried }
                 case Term.Builtin(DefaultFun.EqualsByteString) =>
                     '{ Builtins.equalsByteString.curried }
-                case Term.Builtin(DefaultFun.IfThenElse) => '{ () => Builtins.ifThenElse.curried }
-                case Term.Builtin(DefaultFun.Trace)      => '{ () => Builtins.trace }
-                case Term.Builtin(DefaultFun.FstPair)    => '{ () => () => Builtins.fstPair }
-                case Term.Builtin(DefaultFun.SndPair) => '{ () => (b: Boolean) => Builtins.sndPair }
+                case Term.Builtin(DefaultFun.IfThenElse) =>
+                    '{ () => (c: Boolean) => (t: Any) => (f: Any) => Builtins.ifThenElse(c, t, f) }
+                case Term.Builtin(DefaultFun.Trace)   => '{ () => Builtins.trace }
+                case Term.Builtin(DefaultFun.FstPair) => '{ () => () => Builtins.fstPair }
+                case Term.Builtin(DefaultFun.SndPair) => '{ () => () => Builtins.sndPair }
                 case Term.Builtin(DefaultFun.ChooseList) =>
                     '{ () => () => Builtins.chooseList.curried }
-                case Term.Builtin(DefaultFun.Sha2_256)     => '{ Builtins.sha2_256(using _) }
+                case Term.Builtin(DefaultFun.Sha2_256)     => '{ Builtins.sha2_256(using ps) }
                 case Term.Builtin(DefaultFun.HeadList)     => '{ () => Builtins.headList }
                 case Term.Builtin(DefaultFun.TailList)     => '{ () => Builtins.tailList }
                 case Term.Builtin(DefaultFun.UnConstrData) => '{ Builtins.unConstrData }
