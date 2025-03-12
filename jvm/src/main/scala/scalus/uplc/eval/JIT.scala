@@ -47,9 +47,11 @@ object JIT {
                 case Data.B(value) => '{ Data.B(${ Expr(value) }) }
         }
 
-        def asdf(x: Term, env: List[(String, quotes.reflect.Term)], owner: Symbol): Expr[Any] =
+        def asdf(x: Term, env: List[(String, quotes.reflect.Term)], owner: Symbol): Expr[Any] = {
+            println(s"asdf owner: $owner#${owner.hashCode}")
             x match
                 case Term.Var(name) =>
+//                    Ref(env.find(_._1 == name.name).get._2.symbol).asExprOf[Any]
                     env.find(_._1 == name.name).get._2.asExprOf[Any]
                 case Term.LamAbs(name, term) =>
                     val mtpe =
@@ -58,7 +60,10 @@ object JIT {
                       owner,
                       mtpe,
                       { case (methSym, List(arg1: quotes.reflect.Term)) =>
-                          asdf(term, (name -> arg1) :: env, methSym).asTerm
+                          println(
+                            s"λ $name -> $methSym#${methSym.hashCode}, owner: $owner#${owner.hashCode}"
+                          )
+                          asdf(term, (name -> arg1) :: env, methSym).asTerm.changeOwner(methSym)
                       }
                     ).asExprOf[Any]
                 case Term.Apply(f, arg) =>
@@ -66,8 +71,15 @@ object JIT {
                     val a = asdf(arg, env, owner)
                     '{ ${ func }.asInstanceOf[Any => Any].apply($a) } // TODO: beta-reduce
                 case Term.Force(term) =>
-                    println("Force")
-                    '{ ${ asdf(term, env, owner) }.asInstanceOf[() => Any]() }
+                    val expr = asdf(term, env, owner)
+                    '{
+                        println(s"trying to force term" + ${ Expr(term.show) } + ", got expr: " + ${
+                            Expr(expr.show)
+                        })
+                        val fff = ${ expr }.asInstanceOf[() => Any]
+                        println(s"forced term: " + fff)
+                        fff.apply()
+                    }
                 case Term.Delay(term) =>
                     println("Delay")
                     '{ () => ${ asdf(term, env, owner) } }
@@ -90,30 +102,19 @@ object JIT {
                 case Term.Builtin(DefaultFun.EqualsInteger) => '{ Builtins.equalsInteger.curried }
                 case Term.Builtin(DefaultFun.EqualsByteString) =>
                     '{ Builtins.equalsByteString.curried }
-                case Term.Builtin(DefaultFun.IfThenElse)   => '{ Builtins.ifThenElse.curried }
-                case Term.Builtin(DefaultFun.Trace)        => '{ Builtins.trace }
-                case Term.Builtin(DefaultFun.FstPair)      => '{ Builtins.fstPair }
-                case Term.Builtin(DefaultFun.SndPair)      => '{ Builtins.sndPair }
-                case Term.Builtin(DefaultFun.ChooseList)   => '{ Builtins.chooseList.curried }
+                case Term.Builtin(DefaultFun.IfThenElse) => '{ () => Builtins.ifThenElse.curried }
+                case Term.Builtin(DefaultFun.Trace)      => '{ () => Builtins.trace }
+                case Term.Builtin(DefaultFun.FstPair)    => '{ () => () => Builtins.fstPair }
+                case Term.Builtin(DefaultFun.SndPair) => '{ () => (b: Boolean) => Builtins.sndPair }
+                case Term.Builtin(DefaultFun.ChooseList) =>
+                    '{ () => () => Builtins.chooseList.curried }
                 case Term.Builtin(DefaultFun.Sha2_256)     => '{ Builtins.sha2_256(using _) }
-                case Term.Builtin(DefaultFun.HeadList)     => '{ Builtins.headList }
-                case Term.Builtin(DefaultFun.TailList)     => '{ Builtins.tailList }
+                case Term.Builtin(DefaultFun.HeadList)     => '{ () => Builtins.headList }
+                case Term.Builtin(DefaultFun.TailList)     => '{ () => Builtins.tailList }
                 case Term.Builtin(DefaultFun.UnConstrData) => '{ Builtins.unConstrData }
                 case Term.Builtin(DefaultFun.UnListData)   => '{ Builtins.unListData }
                 case Term.Builtin(DefaultFun.UnIData)      => '{ Builtins.unIData }
                 case Term.Builtin(DefaultFun.UnBData)      => '{ Builtins.unBData }
-                /*case Term.Builtin(bn) =>
-                        val methodName = lowerFirst(bn.name())
-                        val expr = Select.unique('{ Builtins }.asTerm, methodName).etaExpand(Symbol.spliceOwner).asExprOf[Any]
-                        '{
-                            $expr match
-                                case expr: Function1[_, _]             => expr
-                                case expr: Function2[_, _, _]          => expr.curried
-                                case expr: Function3[_, _, _, _]       => expr.curried
-                                case expr: Function4[_, _, _, _, _]    => expr.curried
-                                case expr: Function5[_, _, _, _, _, _] => expr.curried
-                                case expr => throw new Exception(s"Unsupported arity: $expr")
-                        }*/
                 case Term.Error =>
                     println("Error")
                     '{ throw new Exception("Error") }
@@ -121,13 +122,16 @@ object JIT {
                     Expr.ofTuple(Expr(tag) -> Expr.ofList(args.map(a => asdf(a, env, owner))))
                 case Term.Case(arg, cases) =>
                     val constr = asdf(arg, env, owner).asExprOf[(Long, List[Any])]
-                    val caseFuncs = Expr.ofList(cases.map(c => asdf(c, env, owner).asExprOf[Any => Any]))
+                    val caseFuncs =
+                        Expr.ofList(cases.map(c => asdf(c, env, owner).asExprOf[Any => Any]))
                     '{
                         val (tag, args) = $constr
                         args.foldLeft($caseFuncs(tag.toInt))((f, a) =>
                             f(a).asInstanceOf[Any => Any]
                         )
                     }
+        }
+
         asdf(x, Nil, Symbol.spliceOwner)
     }
 
