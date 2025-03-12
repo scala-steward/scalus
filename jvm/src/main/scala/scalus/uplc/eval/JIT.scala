@@ -20,7 +20,7 @@ object JIT {
     .toUplc()
     val ps: PlatformSpecific = scalus.builtin.JVMPlatformSpecific
 
-    def embed(x: Term)(using Quotes): Expr[Any] = {
+    def embed(x: Term)(using Quotes): Expr[() => Any] = {
         import quotes.reflect.{Lambda, MethodType, Symbol, ValDef, TypeRepr, asTerm, Ref, Select, Flags}
 
         given ByteStringToExpr: ToExpr[ByteString] with {
@@ -133,12 +133,10 @@ object JIT {
                     }
         }
 
-        asdf(x, Nil, Symbol.spliceOwner)
+        '{ () => ${ asdf(x, Nil, Symbol.spliceOwner) } }
     }
 
-    def jitUplc(term: Term): Any = staging.run { (quotes: Quotes) ?=>
-        val expr = embed(term)
-        println(expr.show)
-        expr
+    def jitUplc(term: Term): () => Any = staging.run { (quotes: Quotes) ?=>
+        embed(term)
     }
 }

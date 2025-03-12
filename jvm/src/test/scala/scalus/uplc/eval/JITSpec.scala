@@ -18,6 +18,6 @@ class JITSpec extends AnyFunSuiteLike {
 
     test("UPLC JIT compilation works") {
         println(JIT.uplc.showHighlighted)
-        println(JIT.jitUplc(JIT.uplc))
+        println(JIT.jitUplc(JIT.uplc)())
     }
 }

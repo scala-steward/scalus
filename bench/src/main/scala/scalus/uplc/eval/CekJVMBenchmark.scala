@@ -70,6 +70,6 @@ object Test {
         val builtins = collect(program.term).toSeq.sorted
         println(builtins)
         println(program.showHighlighted)
-        println(JIT.jitUplc(program.term))
+        println(JIT.jitUplc(program.term)())
     }
 }
