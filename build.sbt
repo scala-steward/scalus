@@ -215,6 +215,8 @@ lazy val scalus = crossProject(JSPlatform, JVMPlatform, NativePlatform)
       // that is needed by bitcoin-s-secp256k1jni, because it's an older fork of secp256k1
       Test / javaOptions += "-Djava.library.path=",
       // Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-S", "-8077211454138081902"),
+      libraryDependencies += "org.scala-lang" %% "scala3-staging" % scalaVersion.value,
+      libraryDependencies += "org.scala-lang" %% "scala3-compiler" % scalaVersion.value, // % "provided"
       libraryDependencies += "org.slf4j" % "slf4j-simple" % "2.0.17" % "provided",
       libraryDependencies += "org.bouncycastle" % "bcprov-jdk18on" % "1.80",
       libraryDependencies += "foundation.icon" % "blst-java" % "0.3.2",
