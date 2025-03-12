@@ -191,6 +191,7 @@ lazy val scalus = crossProject(JSPlatform, JVMPlatform, NativePlatform)
       scalaVersion := scalaVersion.value,
       scalacOptions ++= commonScalacOptions,
       scalacOptions += "-Xmax-inlines:100", // needed for upickle derivation of CostModel
+      scalacOptions += "-Xcheck-macros",
       // scalacOptions += "-Yretain-trees",
       mimaPreviousArtifacts := Set(organization.value %%% name.value % scalusCompatibleVersion),
 

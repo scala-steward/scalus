@@ -23,11 +23,11 @@ object JIT {
         import quotes.reflect.{Lambda, MethodType, Symbol, ValDef, TypeRepr, asTerm, Ref, Select, Flags}
         import scalus.builtin.given
 
-        /** Default implementation of `ToExpr[Either[L, R]]` */
         given ByteStringToExpr: ToExpr[ByteString] with {
             def apply(x: ByteString)(using Quotes): Expr[ByteString] =
                 '{ ByteString.fromArray(${ Expr(x.bytes) }) }
         }
+
         given DataToExpr: ToExpr[Data] with {
             def apply(x: Data)(using Quotes): Expr[Data] = x match
                 case Data.Constr(tag, args) =>
@@ -47,40 +47,30 @@ object JIT {
                 case Data.B(value) => '{ Data.B(${ Expr(value) }) }
         }
 
-        def asdf(x: Term, env: List[(String, quotes.reflect.Term)]): Expr[Any] =
+        def asdf(x: Term, env: List[(String, quotes.reflect.Term)], owner: Symbol): Expr[Any] =
             x match
                 case Term.Var(name) =>
-                    println(s"Var: $name")
                     env.find(_._1 == name.name).get._2.asExprOf[Any]
                 case Term.LamAbs(name, term) =>
                     val mtpe =
                         MethodType(List(name))(_ => List(TypeRepr.of[Any]), _ => TypeRepr.of[Any])
-                    // Create a fresh symbol for the lambda parameter.
-                    val newParamSym = Symbol.newVal(
-                      Symbol.spliceOwner,
-                      name,
-                      TypeRepr.of[Any],
-                      Flags.EmptyFlags,
-                      Symbol.noSymbol
-                    )
                     Lambda(
-                      newParamSym,
+                      owner,
                       mtpe,
                       { case (methSym, List(arg1: quotes.reflect.Term)) =>
-                          asdf(term, (name -> arg1) :: env).asTerm
+                          asdf(term, (name -> arg1) :: env, methSym).asTerm
                       }
                     ).asExprOf[Any]
                 case Term.Apply(f, arg) =>
-                    println("Apply")
-                    val func = asdf(f, env)
-                    val a = asdf(arg, env)
+                    val func = asdf(f, env, owner)
+                    val a = asdf(arg, env, owner)
                     '{ ${ func }.asInstanceOf[Any => Any].apply($a) } // TODO: beta-reduce
                 case Term.Force(term) =>
                     println("Force")
-                    '{ ${ asdf(term, env) }.asInstanceOf[() => Any]() }
+                    '{ ${ asdf(term, env, owner) }.asInstanceOf[() => Any]() }
                 case Term.Delay(term) =>
                     println("Delay")
-                    '{ () => ${ asdf(term, env) } }
+                    '{ () => ${ asdf(term, env, owner) } }
                 case Term.Const(const) =>
                     println(s"Const: $const")
                     const match
@@ -128,18 +118,17 @@ object JIT {
                     println("Error")
                     '{ throw new Exception("Error") }
                 case Term.Constr(tag, args) =>
-                    Expr.ofTuple(Expr(tag) -> Expr.ofList(args.map(a => asdf(a, env))))
+                    Expr.ofTuple(Expr(tag) -> Expr.ofList(args.map(a => asdf(a, env, owner))))
                 case Term.Case(arg, cases) =>
-                    val constr = asdf(arg, env).asExprOf[(Long, List[Any])]
-                    val caseFuncs = Expr.ofList(cases.map(c => asdf(c, env).asExprOf[Any => Any]))
+                    val constr = asdf(arg, env, owner).asExprOf[(Long, List[Any])]
+                    val caseFuncs = Expr.ofList(cases.map(c => asdf(c, env, owner).asExprOf[Any => Any]))
                     '{
                         val (tag, args) = $constr
                         args.foldLeft($caseFuncs(tag.toInt))((f, a) =>
                             f(a).asInstanceOf[Any => Any]
                         )
                     }
-                    Expr(1)
-        asdf(x, Nil)
+        asdf(x, Nil, Symbol.spliceOwner)
     }
 
     def jitUplc(term: Term): Any = staging.run { (quotes: Quotes) ?=>
