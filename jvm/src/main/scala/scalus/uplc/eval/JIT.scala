@@ -20,7 +20,7 @@ object JIT {
     .toUplc()
 
     def embed(x: Term)(using Quotes): Expr[Any] = {
-        import quotes.reflect.{Lambda, MethodType, Symbol, ValDef, TypeRepr, asTerm, Ref, Select}
+        import quotes.reflect.{Lambda, MethodType, Symbol, ValDef, TypeRepr, asTerm, Ref, Select, Flags}
         import scalus.builtin.given
 
         /** Default implementation of `ToExpr[Either[L, R]]` */
@@ -38,10 +38,10 @@ object JIT {
                     val valueExpr = Expr.ofList(value.map(apply))
                     '{ Data.List($valueExpr) }
                 case Data.Map(values) =>
-                    val aaa = values.map { case (k, v) =>
+                    val argsListOfExprTuple = values.map { case (k, v) =>
                         Expr.ofTuple(apply(k), apply(v))
                     }
-                    val argsExpr = Expr.ofList(aaa)
+                    val argsExpr = Expr.ofList(argsListOfExprTuple)
                     '{ Data.Map($argsExpr) }
                 case Data.I(value) => '{ Data.I(${ Expr(value) }) }
                 case Data.B(value) => '{ Data.B(${ Expr(value) }) }
@@ -53,11 +53,18 @@ object JIT {
                     println(s"Var: $name")
                     env.find(_._1 == name.name).get._2.asExprOf[Any]
                 case Term.LamAbs(name, term) =>
-                    println(s"LamAbs: $name")
                     val mtpe =
                         MethodType(List(name))(_ => List(TypeRepr.of[Any]), _ => TypeRepr.of[Any])
-                    Lambda(
+                    // Create a fresh symbol for the lambda parameter.
+                    val newParamSym = Symbol.newVal(
                       Symbol.spliceOwner,
+                      name,
+                      TypeRepr.of[Any],
+                      Flags.EmptyFlags,
+                      Symbol.noSymbol
+                    )
+                    Lambda(
+                      newParamSym,
                       mtpe,
                       { case (methSym, List(arg1: quotes.reflect.Term)) =>
                           asdf(term, (name -> arg1) :: env).asTerm
