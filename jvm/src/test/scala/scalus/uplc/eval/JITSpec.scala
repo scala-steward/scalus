@@ -11,7 +11,8 @@ class JITSpec extends AnyFunSuiteLike {
 
     test("UPLC JIT compilation works") {
         val uplc: Term = compile:
-            ((i: BigInt) => i + 1)(2)
+            ((i: BigInt) => if i > 0 then throw new Exception("Not implemented") else i + 1)(2)
+//            throw new Exception("Not implemented")
         .toUplc()
 
         println(uplc.showHighlighted)
