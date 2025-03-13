@@ -15,9 +15,6 @@ import scala.quoted.*
 object JIT {
     given staging.Compiler = staging.Compiler.make(getClass.getClassLoader)
 
-    val uplc: Term = compile:
-        ((i: BigInt) => i + 1)(2)
-    .toUplc()
     val ps: PlatformSpecific = scalus.builtin.JVMPlatformSpecific
 
     def embed(x: Term)(using Quotes): Expr[() => Any] = {
