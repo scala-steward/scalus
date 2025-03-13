@@ -8,6 +8,7 @@ import scalus.*
 import scalus.Compiler.compile
 import scalus.sir.SIR
 import scalus.uplc.Constant.toValue
+import scalus.uplc.eval.ExBudgetCategory.Startup
 import scalus.utils.Utils.lowerFirst
 
 import scala.quoted.*
@@ -58,13 +59,14 @@ object JIT {
             case Constant.BLS12_381_MlResult(value) => ???
     }
 
-    private def genCodeFromTerm(term: Term)(using Quotes): Expr[Logger => Any] = {
+    private def genCodeFromTerm(term: Term)(using Quotes): Expr[(Logger, BudgetSpender) => Any] = {
         import quotes.reflect.{Lambda, MethodType, Symbol, ValDef, TypeRepr, asTerm, Ref, Select, Flags}
 
         def genCode(
             term: Term,
             env: List[(String, quotes.reflect.Term)],
-            logger: Expr[Logger]
+            logger: Expr[Logger],
+            budget: Expr[BudgetSpender]
         ): Expr[Any] = {
             term match
                 case Term.Var(name) =>
@@ -76,22 +78,23 @@ object JIT {
                       Symbol.spliceOwner,
                       mtpe,
                       { case (methSym, List(arg1: quotes.reflect.Term)) =>
-                          genCode(term, (name -> arg1) :: env, logger).asTerm.changeOwner(methSym)
+                          genCode(term, (name -> arg1) :: env, logger, budget).asTerm
+                              .changeOwner(methSym)
                       }
                     ).asExprOf[Any]
                 case Term.Apply(f, arg) =>
-                    val func = genCode(f, env, logger)
-                    val a = genCode(arg, env, logger)
+                    val func = genCode(f, env, logger, budget)
+                    val a = genCode(arg, env, logger, budget)
                     Expr.betaReduce('{
                         ${ func }.asInstanceOf[Any => Any].apply($a)
                     })
                 case Term.Force(term) =>
-                    val expr = genCode(term, env, logger)
+                    val expr = genCode(term, env, logger, budget)
                     '{
                         val forceTerm = ${ expr }.asInstanceOf[() => Any]
                         forceTerm.apply()
                     }
-                case Term.Delay(term)  => '{ () => ${ genCode(term, env, logger) } }
+                case Term.Delay(term)  => '{ () => ${ genCode(term, env, logger, budget) } }
                 case Term.Const(const) => constantToExpr(const)
                 case Term.Builtin(DefaultFun.AddInteger) => '{ Builtins.addInteger.curried }
                 case Term.Builtin(DefaultFun.EqualsData) => '{ Builtins.equalsData.curried }
@@ -119,11 +122,15 @@ object JIT {
                 case Term.Builtin(DefaultFun.UnBData)      => '{ Builtins.unBData }
                 case Term.Error => '{ throw new RuntimeException("Error") }
                 case Term.Constr(tag, args) =>
-                    Expr.ofTuple(Expr(tag) -> Expr.ofList(args.map(a => genCode(a, env, logger))))
+                    Expr.ofTuple(
+                      Expr(tag) -> Expr.ofList(args.map(a => genCode(a, env, logger, budget)))
+                    )
                 case Term.Case(arg, cases) =>
-                    val constr = genCode(arg, env, logger).asExprOf[(Long, List[Any])]
+                    val constr = genCode(arg, env, logger, budget).asExprOf[(Long, List[Any])]
                     val caseFuncs =
-                        Expr.ofList(cases.map(c => genCode(c, env, logger).asExprOf[Any => Any]))
+                        Expr.ofList(
+                          cases.map(c => genCode(c, env, logger, budget).asExprOf[Any => Any])
+                        )
                     '{
                         val (tag, args) = $constr
                         args.foldLeft($caseFuncs(tag.toInt))((f, a) =>
@@ -132,10 +139,13 @@ object JIT {
                     }
         }
 
-        '{ (logger: Logger) => ${ genCode(term, Nil, 'logger) } }
+        '{ (logger: Logger, budget: BudgetSpender) =>
+            budget.spendBudget(Startup, ExBudget.zero, Nil)     
+            ${ genCode(term, Nil, 'logger, 'budget) } 
+        }
     }
 
-    def jitUplc(term: Term): Logger => Any = staging.run { (quotes: Quotes) ?=>
+    def jitUplc(term: Term): (Logger, BudgetSpender) => Any = staging.run { (quotes: Quotes) ?=>
         val expr = genCodeFromTerm(term)
 //        println(expr.show)
         expr

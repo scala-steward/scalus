@@ -19,7 +19,7 @@ class JITSpec extends AnyFunSuiteLike {
 
         println(uplc.showHighlighted)
         val logger = Log()
-        Try(println(JIT.jitUplc(uplc)(logger)))
+        Try(println(JIT.jitUplc(uplc)(logger, NoBudgetSpender)))
         println(logger.getLogs.mkString)
     }
 }
