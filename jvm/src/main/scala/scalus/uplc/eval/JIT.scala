@@ -47,7 +47,7 @@ object JIT {
                 case Data.B(value) => '{ Data.B(${ Expr(value) }) }
         }
 
-        def asdf(x: Term, env: List[(String, quotes.reflect.Term)], owner: Symbol): Expr[Any] = {
+        def asdf(x: Term, env: List[(String, quotes.reflect.Term)]): Expr[Any] = {
 //            println(s"asdf owner: $owner#${owner.hashCode}")
             x match
                 case Term.Var(name) =>
@@ -57,21 +57,21 @@ object JIT {
                     val mtpe =
                         MethodType(List(name))(_ => List(TypeRepr.of[Any]), _ => TypeRepr.of[Any])
                     Lambda(
-                      owner,
+                      Symbol.spliceOwner,
                       mtpe,
                       { case (methSym, List(arg1: quotes.reflect.Term)) =>
 //                          println(
 //                            s"λ $name -> $methSym#${methSym.hashCode}, owner: $owner#${owner.hashCode}"
 //                          )
-                          asdf(term, (name -> arg1) :: env, methSym).asTerm.changeOwner(methSym)
+                          asdf(term, (name -> arg1) :: env).asTerm.changeOwner(methSym)
                       }
                     ).asExprOf[Any]
                 case Term.Apply(f, arg) =>
-                    val func = asdf(f, env, owner)
-                    val a = asdf(arg, env, owner)
+                    val func = asdf(f, env)
+                    val a = asdf(arg, env)
                     '{ ${ func }.asInstanceOf[Any => Any].apply($a) } // TODO: beta-reduce
                 case Term.Force(term) =>
-                    val expr = asdf(term, env, owner)
+                    val expr = asdf(term, env)
                     '{
 //                        println(s"trying to force term" + ${ Expr(term.show) } + ", got expr: " + ${
 //                            Expr(expr.show)
@@ -82,7 +82,7 @@ object JIT {
                     }
                 case Term.Delay(term) =>
 //                    println("Delay")
-                    '{ () => ${ asdf(term, env, owner) } }
+                    '{ () => ${ asdf(term, env) } }
                 case Term.Const(const) =>
 //                    println(s"Const: $const")
                     const match
@@ -120,11 +120,11 @@ object JIT {
 //                    println("Error")
                     '{ throw new Exception("Error") }
                 case Term.Constr(tag, args) =>
-                    Expr.ofTuple(Expr(tag) -> Expr.ofList(args.map(a => asdf(a, env, owner))))
+                    Expr.ofTuple(Expr(tag) -> Expr.ofList(args.map(a => asdf(a, env))))
                 case Term.Case(arg, cases) =>
-                    val constr = asdf(arg, env, owner).asExprOf[(Long, List[Any])]
+                    val constr = asdf(arg, env).asExprOf[(Long, List[Any])]
                     val caseFuncs =
-                        Expr.ofList(cases.map(c => asdf(c, env, owner).asExprOf[Any => Any]))
+                        Expr.ofList(cases.map(c => asdf(c, env).asExprOf[Any => Any]))
                     '{
                         val (tag, args) = $constr
                         args.foldLeft($caseFuncs(tag.toInt))((f, a) =>
@@ -133,7 +133,7 @@ object JIT {
                     }
         }
 
-        '{ () => ${ asdf(x, Nil, Symbol.spliceOwner) } }
+        '{ () => ${ asdf(x, Nil) } }
     }
 
     def jitUplc(term: Term): () => Any = staging.run { (quotes: Quotes) ?=>
