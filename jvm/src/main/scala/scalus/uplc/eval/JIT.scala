@@ -78,7 +78,9 @@ object JIT {
                 case Term.Apply(f, arg) =>
                     val func = genCode(f, env)
                     val a = genCode(arg, env)
-                    '{ ${ func }.asInstanceOf[Any => Any].apply($a) } // TODO: beta-reduce
+                    Expr.betaReduce('{
+                        ${ func }.asInstanceOf[Any => Any].apply($a)
+                    })
                 case Term.Force(term) =>
                     val expr = genCode(term, env)
                     '{
