@@ -13,40 +13,40 @@ import scalus.utils.Utils.lowerFirst
 import scala.quoted.*
 
 object JIT {
-    given staging.Compiler = staging.Compiler.make(getClass.getClassLoader)
+    private given staging.Compiler = staging.Compiler.make(getClass.getClassLoader)
 
-    val ps: PlatformSpecific = scalus.builtin.JVMPlatformSpecific
+    private val ps: PlatformSpecific = scalus.builtin.JVMPlatformSpecific
 
-    def embed(x: Term)(using Quotes): Expr[() => Any] = {
+    private given ByteStringToExpr: ToExpr[ByteString] with {
+        def apply(x: ByteString)(using Quotes): Expr[ByteString] =
+            '{ ByteString.fromArray(${ Expr(x.bytes) }) }
+    }
+
+    private given DataToExpr: ToExpr[Data] with {
+        def apply(x: Data)(using Quotes): Expr[Data] = x match
+            case Data.Constr(tag, args) =>
+                val tagExpr = Expr(tag)
+                val argsExpr = Expr.ofList(args.map(apply))
+                '{ Data.Constr($tagExpr, $argsExpr) }
+            case Data.List(value) =>
+                val valueExpr = Expr.ofList(value.map(apply))
+                '{ Data.List($valueExpr) }
+            case Data.Map(values) =>
+                val argsListOfExprTuple = values.map { case (k, v) =>
+                    Expr.ofTuple(apply(k), apply(v))
+                }
+                val argsExpr = Expr.ofList(argsListOfExprTuple)
+                '{ Data.Map($argsExpr) }
+            case Data.I(value) => '{ Data.I(${ Expr(value) }) }
+            case Data.B(value) => '{ Data.B(${ Expr(value) }) }
+    }
+
+    private def genCodeFromTerm(term: Term)(using Quotes): Expr[() => Any] = {
         import quotes.reflect.{Lambda, MethodType, Symbol, ValDef, TypeRepr, asTerm, Ref, Select, Flags}
 
-        given ByteStringToExpr: ToExpr[ByteString] with {
-            def apply(x: ByteString)(using Quotes): Expr[ByteString] =
-                '{ ByteString.fromArray(${ Expr(x.bytes) }) }
-        }
-
-        given DataToExpr: ToExpr[Data] with {
-            def apply(x: Data)(using Quotes): Expr[Data] = x match
-                case Data.Constr(tag, args) =>
-                    val tagExpr = Expr(tag)
-                    val argsExpr = Expr.ofList(args.map(apply))
-                    '{ Data.Constr($tagExpr, $argsExpr) }
-                case Data.List(value) =>
-                    val valueExpr = Expr.ofList(value.map(apply))
-                    '{ Data.List($valueExpr) }
-                case Data.Map(values) =>
-                    val argsListOfExprTuple = values.map { case (k, v) =>
-                        Expr.ofTuple(apply(k), apply(v))
-                    }
-                    val argsExpr = Expr.ofList(argsListOfExprTuple)
-                    '{ Data.Map($argsExpr) }
-                case Data.I(value) => '{ Data.I(${ Expr(value) }) }
-                case Data.B(value) => '{ Data.B(${ Expr(value) }) }
-        }
-
-        def asdf(x: Term, env: List[(String, quotes.reflect.Term)]): Expr[Any] = {
-//            println(s"asdf owner: $owner#${owner.hashCode}")
-            x match
+        def genCode(term: Term, env: List[(String, quotes.reflect.Term)]): Expr[Any] = {
+//            println(s"genCode owner: $owner#${owner.hashCode}")
+            term match
                 case Term.Var(name) =>
 //                    Ref(env.find(_._1 == name.name).get._2.symbol).asExprOf[Any]
                     env.find(_._1 == name.name).get._2.asExprOf[Any]
@@ -60,15 +60,15 @@ object JIT {
 //                          println(
 //                            s"λ $name -> $methSym#${methSym.hashCode}, owner: $owner#${owner.hashCode}"
 //                          )
-                          asdf(term, (name -> arg1) :: env).asTerm.changeOwner(methSym)
+                          genCode(term, (name -> arg1) :: env).asTerm.changeOwner(methSym)
                       }
                     ).asExprOf[Any]
                 case Term.Apply(f, arg) =>
-                    val func = asdf(f, env)
-                    val a = asdf(arg, env)
+                    val func = genCode(f, env)
+                    val a = genCode(arg, env)
                     '{ ${ func }.asInstanceOf[Any => Any].apply($a) } // TODO: beta-reduce
                 case Term.Force(term) =>
-                    val expr = asdf(term, env)
+                    val expr = genCode(term, env)
                     '{
 //                        println(s"trying to force term" + ${ Expr(term.show) } + ", got expr: " + ${
 //                            Expr(expr.show)
@@ -79,7 +79,7 @@ object JIT {
                     }
                 case Term.Delay(term) =>
 //                    println("Delay")
-                    '{ () => ${ asdf(term, env) } }
+                    '{ () => ${ genCode(term, env) } }
                 case Term.Const(const) =>
 //                    println(s"Const: $const")
                     const match
@@ -113,15 +113,15 @@ object JIT {
                 case Term.Builtin(DefaultFun.UnListData)   => '{ Builtins.unListData }
                 case Term.Builtin(DefaultFun.UnIData)      => '{ Builtins.unIData }
                 case Term.Builtin(DefaultFun.UnBData)      => '{ Builtins.unBData }
-                case Term.Error =>
+                case Term.Error                            =>
 //                    println("Error")
                     '{ throw new Exception("Error") }
                 case Term.Constr(tag, args) =>
-                    Expr.ofTuple(Expr(tag) -> Expr.ofList(args.map(a => asdf(a, env))))
+                    Expr.ofTuple(Expr(tag) -> Expr.ofList(args.map(a => genCode(a, env))))
                 case Term.Case(arg, cases) =>
-                    val constr = asdf(arg, env).asExprOf[(Long, List[Any])]
+                    val constr = genCode(arg, env).asExprOf[(Long, List[Any])]
                     val caseFuncs =
-                        Expr.ofList(cases.map(c => asdf(c, env).asExprOf[Any => Any]))
+                        Expr.ofList(cases.map(c => genCode(c, env).asExprOf[Any => Any]))
                     '{
                         val (tag, args) = $constr
                         args.foldLeft($caseFuncs(tag.toInt))((f, a) =>
@@ -130,10 +130,10 @@ object JIT {
                     }
         }
 
-        '{ () => ${ asdf(x, Nil) } }
+        '{ () => ${ genCode(term, Nil) } }
     }
 
     def jitUplc(term: Term): () => Any = staging.run { (quotes: Quotes) ?=>
-        embed(term)
+        genCodeFromTerm(term)
     }
 }
