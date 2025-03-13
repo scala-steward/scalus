@@ -58,10 +58,14 @@ object JIT {
             case Constant.BLS12_381_MlResult(value) => ???
     }
 
-    private def genCodeFromTerm(term: Term)(using Quotes): Expr[() => Any] = {
+    private def genCodeFromTerm(term: Term)(using Quotes): Expr[Logger => Any] = {
         import quotes.reflect.{Lambda, MethodType, Symbol, ValDef, TypeRepr, asTerm, Ref, Select, Flags}
 
-        def genCode(term: Term, env: List[(String, quotes.reflect.Term)]): Expr[Any] = {
+        def genCode(
+            term: Term,
+            env: List[(String, quotes.reflect.Term)],
+            logger: Expr[Logger]
+        ): Expr[Any] = {
             term match
                 case Term.Var(name) =>
                     env.find(_._1 == name.name).get._2.asExprOf[Any]
@@ -72,23 +76,23 @@ object JIT {
                       Symbol.spliceOwner,
                       mtpe,
                       { case (methSym, List(arg1: quotes.reflect.Term)) =>
-                          genCode(term, (name -> arg1) :: env).asTerm.changeOwner(methSym)
+                          genCode(term, (name -> arg1) :: env, logger).asTerm.changeOwner(methSym)
                       }
                     ).asExprOf[Any]
                 case Term.Apply(f, arg) =>
-                    val func = genCode(f, env)
-                    val a = genCode(arg, env)
+                    val func = genCode(f, env, logger)
+                    val a = genCode(arg, env, logger)
                     Expr.betaReduce('{
                         ${ func }.asInstanceOf[Any => Any].apply($a)
                     })
                 case Term.Force(term) =>
-                    val expr = genCode(term, env)
+                    val expr = genCode(term, env, logger)
                     '{
                         val forceTerm = ${ expr }.asInstanceOf[() => Any]
                         forceTerm.apply()
                     }
-                case Term.Delay(term)                    => '{ () => ${ genCode(term, env) } }
-                case Term.Const(const)                   => constantToExpr(const)
+                case Term.Delay(term)  => '{ () => ${ genCode(term, env, logger) } }
+                case Term.Const(const) => constantToExpr(const)
                 case Term.Builtin(DefaultFun.AddInteger) => '{ Builtins.addInteger.curried }
                 case Term.Builtin(DefaultFun.EqualsData) => '{ Builtins.equalsData.curried }
                 case Term.Builtin(DefaultFun.LessThanInteger) =>
@@ -98,7 +102,10 @@ object JIT {
                     '{ Builtins.equalsByteString.curried }
                 case Term.Builtin(DefaultFun.IfThenElse) =>
                     '{ () => (c: Boolean) => (t: Any) => (f: Any) => Builtins.ifThenElse(c, t, f) }
-                case Term.Builtin(DefaultFun.Trace)   => '{ () => (s: String) => (a: Any) => a }
+                case Term.Builtin(DefaultFun.Trace) =>
+                    '{ () => (s: String) => (a: Any) =>
+                        ${ logger }.log(s); a
+                    }
                 case Term.Builtin(DefaultFun.FstPair) => '{ () => () => Builtins.fstPair }
                 case Term.Builtin(DefaultFun.SndPair) => '{ () => () => Builtins.sndPair }
                 case Term.Builtin(DefaultFun.ChooseList) =>
@@ -112,11 +119,11 @@ object JIT {
                 case Term.Builtin(DefaultFun.UnBData)      => '{ Builtins.unBData }
                 case Term.Error => '{ throw new RuntimeException("Error") }
                 case Term.Constr(tag, args) =>
-                    Expr.ofTuple(Expr(tag) -> Expr.ofList(args.map(a => genCode(a, env))))
+                    Expr.ofTuple(Expr(tag) -> Expr.ofList(args.map(a => genCode(a, env, logger))))
                 case Term.Case(arg, cases) =>
-                    val constr = genCode(arg, env).asExprOf[(Long, List[Any])]
+                    val constr = genCode(arg, env, logger).asExprOf[(Long, List[Any])]
                     val caseFuncs =
-                        Expr.ofList(cases.map(c => genCode(c, env).asExprOf[Any => Any]))
+                        Expr.ofList(cases.map(c => genCode(c, env, logger).asExprOf[Any => Any]))
                     '{
                         val (tag, args) = $constr
                         args.foldLeft($caseFuncs(tag.toInt))((f, a) =>
@@ -125,10 +132,12 @@ object JIT {
                     }
         }
 
-        '{ () => ${ genCode(term, Nil) } }
+        '{ (logger: Logger) => ${ genCode(term, Nil, 'logger) } }
     }
 
-    def jitUplc(term: Term): () => Any = staging.run { (quotes: Quotes) ?=>
-        genCodeFromTerm(term)
+    def jitUplc(term: Term): Logger => Any = staging.run { (quotes: Quotes) ?=>
+        val expr = genCodeFromTerm(term)
+//        println(expr.show)
+        expr
     }
 }

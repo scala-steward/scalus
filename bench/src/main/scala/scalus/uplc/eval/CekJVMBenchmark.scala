@@ -86,7 +86,7 @@ class JITBenchmark:
     @BenchmarkMode(Array(Mode.AverageTime))
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
     def benchJIT() = {
-        jitted()
+        jitted(NoLogger)
     }
 
 object Test {
@@ -111,7 +111,7 @@ object Test {
         case Term.Case(arg, cases)   => collect(arg) ++ cases.flatMap(collect)
     val builtins = collect(program.term).toSeq.sorted
 
-    def getJitted(): () => Any = {
+    def getJitted(): Logger => Any = {
         val start = System.currentTimeMillis()
         val r = JIT.jitUplc(program.term)
         val end = System.currentTimeMillis()
@@ -125,6 +125,6 @@ object Test {
         println(program.evaluateDebug)
 //        println(program.showHighlighted)
 //        println(JIT.jitUplc(program.term)())
-        getJitted()()
+        getJitted()(NoLogger)
     }
 }
