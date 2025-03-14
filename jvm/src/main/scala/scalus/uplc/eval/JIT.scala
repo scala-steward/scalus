@@ -8,7 +8,7 @@ import scalus.*
 import scalus.Compiler.compile
 import scalus.sir.SIR
 import scalus.uplc.Constant.toValue
-import scalus.uplc.eval.ExBudgetCategory.Startup
+import scalus.uplc.eval.ExBudgetCategory.{Startup, Step}
 import scalus.utils.Utils.lowerFirst
 
 import scala.quoted.*
@@ -59,44 +59,106 @@ object JIT {
             case Constant.BLS12_381_MlResult(value) => ???
     }
 
-    private def genCodeFromTerm(term: Term)(using Quotes): Expr[(Logger, BudgetSpender) => Any] = {
+    enum FunType:
+        case Lam(f: Any => Any)
+        case Builtin(f: Any => Any)
+
+    private def genCodeFromTerm(
+        term: Term
+    )(using Quotes): Expr[(Logger, BudgetSpender, MachineParams) => Any] = {
         import quotes.reflect.{Lambda, MethodType, Symbol, ValDef, TypeRepr, asTerm, Ref, Select, Flags}
 
         def genCode(
             term: Term,
             env: List[(String, quotes.reflect.Term)],
             logger: Expr[Logger],
-            budget: Expr[BudgetSpender]
+            budget: Expr[BudgetSpender],
+            params: Expr[MachineParams]
         ): Expr[Any] = {
             term match
                 case Term.Var(name) =>
-                    env.find(_._1 == name.name).get._2.asExprOf[Any]
+                    val vr = env.find(_._1 == name.name).get._2.asExprOf[Any]
+                    '{
+                        $budget.spendBudget(Step(StepKind.Var), $params.machineCosts.varCost, Nil)
+                        $vr
+                    }
                 case Term.LamAbs(name, term) =>
                     val mtpe =
                         MethodType(List(name))(_ => List(TypeRepr.of[Any]), _ => TypeRepr.of[Any])
-                    Lambda(
+                    val lambda = Lambda(
                       Symbol.spliceOwner,
                       mtpe,
                       { case (methSym, List(arg1: quotes.reflect.Term)) =>
-                          genCode(term, (name -> arg1) :: env, logger, budget).asTerm
+                          genCode(term, (name -> arg1) :: env, logger, budget, params).asTerm
                               .changeOwner(methSym)
                       }
                     ).asExprOf[Any]
+                    '{
+                        $budget.spendBudget(Step(StepKind.Var), $params.machineCosts.varCost, Nil)
+                        FunType.Lam($lambda)
+                    }
                 case Term.Apply(f, arg) =>
-                    val func = genCode(f, env, logger, budget)
-                    val a = genCode(arg, env, logger, budget)
-                    Expr.betaReduce('{
-                        ${ func }.asInstanceOf[Any => Any].apply($a)
-                    })
+                    val func = genCode(f, env, logger, budget, params)
+                    val a = genCode(arg, env, logger, budget, params)
+                    '{
+                        $budget.spendBudget(
+                          Step(StepKind.Apply),
+                          $params.machineCosts.applyCost,
+                          Nil
+                        )
+                        ${ func }.asInstanceOf[FunType] match
+                            case FunType.Lam(f)     => f.apply($a)
+                            case FunType.Builtin(f) => f.apply($a)
+                    }
                 case Term.Force(term) =>
-                    val expr = genCode(term, env, logger, budget)
+                    val expr = genCode(term, env, logger, budget, params)
                     '{
                         val forceTerm = ${ expr }.asInstanceOf[() => Any]
+                        $budget.spendBudget(
+                          Step(StepKind.Force),
+                          $params.machineCosts.forceCost,
+                          Nil
+                        )
                         forceTerm.apply()
                     }
-                case Term.Delay(term)  => '{ () => ${ genCode(term, env, logger, budget) } }
-                case Term.Const(const) => constantToExpr(const)
-                case Term.Builtin(DefaultFun.AddInteger) => '{ Builtins.addInteger.curried }
+                case Term.Delay(term) =>
+                    '{
+                        $budget.spendBudget(
+                          Step(StepKind.Delay),
+                          $params.machineCosts.delayCost,
+                          Nil
+                        )
+                        () => ${ genCode(term, env, logger, budget, params) }
+                    }
+                case Term.Const(const) =>
+                    val expr = constantToExpr(const)
+                    '{
+                        $budget.spendBudget(
+                          Step(StepKind.Const),
+                          $params.machineCosts.constCost,
+                          Nil
+                        )
+                        $expr
+                    }
+//                case Term.Builtin(builtin) =>
+//                    val spendBuiltinExpr = '{
+//                        $budget.spendBudget(
+//                          ExBudgetCategory.Step(StepKind.Builtin),
+//                          $params.machineCosts.builtinCost,
+//                          Nil
+//                        )
+//                    }
+//                    val builtinExpr = builtin match
+//                        case DefaultFun.AddInteger =>
+//                            '{
+//                                $budget.spendBudget(
+//                                  ExBudgetCategory.BuiltinApp(builtin),
+//                                  runtime.calculateCost,
+//                                  env
+//                                )
+//                                FunTime.Builtin(Builtins.addInteger.curried)
+//                            }
+//                    '{ $spendBuiltinExpr; $builtinExpr }
                 case Term.Builtin(DefaultFun.EqualsData) => '{ Builtins.equalsData.curried }
                 case Term.Builtin(DefaultFun.LessThanInteger) =>
                     '{ Builtins.lessThanInteger.curried }
@@ -122,16 +184,30 @@ object JIT {
                 case Term.Builtin(DefaultFun.UnBData)      => '{ Builtins.unBData }
                 case Term.Error => '{ throw new RuntimeException("Error") }
                 case Term.Constr(tag, args) =>
-                    Expr.ofTuple(
-                      Expr(tag) -> Expr.ofList(args.map(a => genCode(a, env, logger, budget)))
+                    val expr = Expr.ofTuple(
+                      Expr(tag) -> Expr.ofList(
+                        args.map(a => genCode(a, env, logger, budget, params))
+                      )
                     )
+                    '{
+                        $budget.spendBudget(
+                          Step(StepKind.Constr),
+                          $params.machineCosts.constrCost,
+                          Nil
+                        )
+                        $expr
+                    }
                 case Term.Case(arg, cases) =>
-                    val constr = genCode(arg, env, logger, budget).asExprOf[(Long, List[Any])]
+                    val constr =
+                        genCode(arg, env, logger, budget, params).asExprOf[(Long, List[Any])]
                     val caseFuncs =
                         Expr.ofList(
-                          cases.map(c => genCode(c, env, logger, budget).asExprOf[Any => Any])
+                          cases.map(c =>
+                              genCode(c, env, logger, budget, params).asExprOf[Any => Any]
+                          )
                         )
                     '{
+                        $budget.spendBudget(Step(StepKind.Case), $params.machineCosts.caseCost, Nil)
                         val (tag, args) = $constr
                         args.foldLeft($caseFuncs(tag.toInt))((f, a) =>
                             f(a).asInstanceOf[Any => Any]
@@ -139,15 +215,16 @@ object JIT {
                     }
         }
 
-        '{ (logger: Logger, budget: BudgetSpender) =>
-            budget.spendBudget(Startup, ExBudget.zero, Nil)     
-            ${ genCode(term, Nil, 'logger, 'budget) } 
+        '{ (logger: Logger, budget: BudgetSpender, params: MachineParams) =>
+            budget.spendBudget(Startup, params.machineCosts.startupCost, Nil)
+            ${ genCode(term, Nil, 'logger, 'budget, 'params) }
         }
     }
 
-    def jitUplc(term: Term): (Logger, BudgetSpender) => Any = staging.run { (quotes: Quotes) ?=>
-        val expr = genCodeFromTerm(term)
+    def jitUplc(term: Term): (Logger, BudgetSpender, MachineParams) => Any = staging.run {
+        (quotes: Quotes) ?=>
+            val expr = genCodeFromTerm(term)
 //        println(expr.show)
-        expr
+            expr
     }
 }
