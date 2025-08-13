@@ -379,6 +379,7 @@ final class SIRCompiler(sirLoader: SIRLoader,  options: SIRCompilerOptions = SIR
                 )
 
             writeModule(module, td.symbol.fullName.toString)
+            
             if options.debugLevel > 0 then
                 report.echo(
                   s"compiled Scalus module ${td.name} [${td.symbol.fullName.toString}] definitions: ${bindingsWithSpecialized.map(_.name)} in ${time}ms"
