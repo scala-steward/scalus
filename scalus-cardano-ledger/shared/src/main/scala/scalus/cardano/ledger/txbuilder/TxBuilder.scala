@@ -1,14 +1,31 @@
 package scalus.cardano.ledger.txbuilder
 import scalus.builtin.{platform, ByteString, Data}
 import scalus.cardano.address.Address
-import scalus.cardano.ledger.*
+import scalus.cardano.ledger.{Coin, DataHash, DatumOption, ExUnits, KeepRaw, Mint, Redeemer, RedeemerTag, Redeemers, Script, Sized, TaggedSet, Transaction, TransactionBody, TransactionInput, TransactionOutput, TransactionWitnessSet, UTxO, VKeyWitness, Value}
 import scalus.cardano.ledger.txbuilder.TxBuilder.{dummyVkey, modifyBody, modifyWs}
 import scalus.cardano.ledger.utils.TxBalance
 
 case class TxBuilder(context: BuilderContext, tx: Transaction = TxBuilder.emptyTx) {
 
+    def payAndMint(address: Address, value: Value): TxBuilder = {
+        val out = Sized(TransactionOutput(address, value))
+        copy(tx =
+            modifyBody(tx, b => b.copy(mint = Some(Mint(value.assets)), outputs = b.outputs :+ out))
+        )
+    }
+
     def payToAddress(address: Address, value: Value): TxBuilder = {
         val out = Sized(TransactionOutput(address, value))
+        copy(tx = modifyBody(tx, b => b.copy(outputs = b.outputs :+ out)))
+    }
+
+    def payToAddress(address: Address, value: Value, datum: Data) = {
+        val out = Sized(TransactionOutput(address, value, Some(DatumOption.Inline(datum))))
+        copy(tx = modifyBody(tx, b => b.copy(outputs = b.outputs :+ out)))
+    }
+
+    def payToAddress(address: Address, value: Value, datumHash: DataHash) = {
+        val out = Sized(TransactionOutput(address, value, Some(DatumOption.Hash(datumHash))))
         copy(tx = modifyBody(tx, b => b.copy(outputs = b.outputs :+ out)))
     }
 
@@ -40,6 +57,13 @@ case class TxBuilder(context: BuilderContext, tx: Transaction = TxBuilder.emptyT
                   nativeScripts = tx.witnessSet.nativeScripts + native
                 )
         }
+        copy(tx = tx.copy(witnessSet = updatedWitnessSet))
+    }
+
+    def withScript(script: Script.Native, index: Int): TxBuilder = {
+        val updatedWitnessSet = tx.witnessSet.copy(
+          nativeScripts = tx.witnessSet.nativeScripts + script
+        )
         copy(tx = tx.copy(witnessSet = updatedWitnessSet))
     }
 
