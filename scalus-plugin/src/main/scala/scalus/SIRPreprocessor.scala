@@ -1,4 +1,4 @@
-package scalus.builtin
+package scalus
 
 class SIRPreprocessor {
     
