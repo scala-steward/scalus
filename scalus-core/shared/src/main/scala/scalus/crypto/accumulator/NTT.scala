@@ -255,7 +255,9 @@ object NTT {
 
     /** Multiply two polynomials via NTT using java.math.BigInteger arrays.
       *
-      * Optimized for the BLS12-381 scalar field. Avoids Scala BigInt wrapper overhead.
+      * Optimized for the BLS12-381 scalar field. Uses allocation-free 256-bit Montgomery arithmetic
+      * (MontField256) with flat Long arrays to eliminate BigInteger/int[] GC pressure in the NTT
+      * hot path.
       *
       * @param a
       *   first polynomial coefficients (elements must be in [0, prime))
@@ -280,32 +282,134 @@ object NTT {
         while n < resultLen do n <<= 1
 
         val omega = principalRootJ(n)
-        val prime = jPrime
+        val L = MontField256.LIMBS // 4
+        val scratch = new Array[Long](6) // CIOS accumulator, reused throughout
 
-        val fa = new Array[JBigInt](n)
-        val fb = new Array[JBigInt](n)
-        System.arraycopy(a, 0, fa, 0, aLen)
-        System.arraycopy(b, 0, fb, 0, bLen)
-        var i = aLen
-        while i < n do
-            fa(i) = JBigInt.ZERO
+        // Convert inputs to flat Long arrays in Montgomery form
+        val fa = new Array[Long](n * L)
+        val fb = new Array[Long](n * L)
+        val tmp = new Array[Long](L)
+        var i = 0
+        while i < aLen do
+            MontField256.fromBigInteger(a(i), tmp, 0)
+            MontField256.toMont(tmp, 0, fa, i * L, scratch)
             i += 1
-        i = bLen
-        while i < n do
-            fb(i) = JBigInt.ZERO
+        // Remaining elements are zero (already initialized to 0L)
+        i = 0
+        while i < bLen do
+            MontField256.fromBigInteger(b(i), tmp, 0)
+            MontField256.toMont(tmp, 0, fb, i * L, scratch)
             i += 1
 
-        forwardJ(fa, n, omega, prime)
-        forwardJ(fb, n, omega, prime)
+        forwardMont256(fa, n, omega, scratch)
+        forwardMont256(fb, n, omega, scratch)
 
+        // Pointwise multiply in Montgomery domain
+        val scratchV = new Array[Long](L)
         i = 0
         while i < n do
-            fa(i) = fa(i).multiply(fb(i)).mod(prime)
+            MontField256.montMul(fa, i * L, fb, i * L, scratchV, 0, scratch)
+            MontField256.copy(scratchV, 0, fa, i * L)
             i += 1
 
-        inverseJ(fa, n, omega, prime)
+        inverseMont256(fa, n, omega, scratch)
 
-        if resultLen < n then java.util.Arrays.copyOf(fa, resultLen)
-        else fa
+        // Convert back from Montgomery form to BigInteger
+        val result = new Array[JBigInt](resultLen)
+        i = 0
+        while i < resultLen do
+            MontField256.fromMont(fa, i * L, tmp, 0, scratch)
+            result(i) = MontField256.toBigInteger(tmp, 0)
+            i += 1
+
+        result
+    }
+
+    /** Forward NTT on flat Long array in Montgomery domain.
+      *
+      * Data is stored as n elements of 4 longs each (little-endian limbs) in Montgomery form. omega
+      * is in normal (non-Montgomery) form.
+      */
+    private def forwardMont256(
+        data: Array[Long],
+        n: Int,
+        omega: JBigInt,
+        scratch: Array[Long]
+    ): Unit = {
+        val L = MontField256.LIMBS
+        val logN = Integer.numberOfTrailingZeros(n)
+
+        // Bit-reversal permutation
+        val swapTmp = new Array[Long](L)
+        var i = 0
+        while i < n do
+            val j = bitReverse(i, logN)
+            if i < j then
+                val iOff = i * L
+                val jOff = j * L
+                MontField256.copy(data, iOff, swapTmp, 0)
+                MontField256.copy(data, jOff, data, iOff)
+                MontField256.copy(swapTmp, 0, data, jOff)
+            i += 1
+
+        // Cooley-Tukey DIT butterflies with allocation-free Montgomery multiplication
+        val scratchV = new Array[Long](L)
+        val stepLimbs = new Array[Long](L)
+        val stepMont = new Array[Long](L)
+        var halfSize = 1
+        while halfSize < n do
+            val size = halfSize << 1
+            val stepNormal = omega.modPow(JBigInt.valueOf(n / size), jPrime)
+            MontField256.fromBigInteger(stepNormal, stepLimbs, 0)
+            MontField256.toMont(stepLimbs, 0, stepMont, 0, scratch)
+
+            // Pre-compute twiddle factors in Montgomery form
+            val twiddles = new Array[Long](halfSize * L)
+            MontField256.copy(MontField256.ONE_MONT, 0, twiddles, 0)
+            var t = 1
+            while t < halfSize do
+                MontField256.montMul(twiddles, (t - 1) * L, stepMont, 0, twiddles, t * L, scratch)
+                t += 1
+
+            var k = 0
+            while k < n do
+                var j = 0
+                while j < halfSize do
+                    val evenOff = (k + j) * L
+                    val oddOff = (k + j + halfSize) * L
+                    val twOff = j * L
+
+                    // v = montMul(data[odd], twiddle[j])
+                    MontField256.montMul(data, oddOff, twiddles, twOff, scratchV, 0, scratch)
+                    // data[odd] = u - v (compute before overwriting u at evenOff)
+                    MontField256.subMod(data, evenOff, scratchV, 0, data, oddOff)
+                    // data[even] = u + v (safe: evenOff still has original u)
+                    MontField256.addMod(data, evenOff, scratchV, 0, data, evenOff)
+                    j += 1
+                k += size
+            halfSize = size
+    }
+
+    /** Inverse NTT on flat Long array in Montgomery domain. */
+    private def inverseMont256(
+        data: Array[Long],
+        n: Int,
+        omega: JBigInt,
+        scratch: Array[Long]
+    ): Unit = {
+        val L = MontField256.LIMBS
+        val omegaInv = omega.modPow(jPrime.subtract(jTwo), jPrime)
+        forwardMont256(data, n, omegaInv, scratch)
+        val nInvNormal = JBigInt.valueOf(n).modPow(jPrime.subtract(jTwo), jPrime)
+        val nInvLimbs = new Array[Long](L)
+        val nInvMont = new Array[Long](L)
+        MontField256.fromBigInteger(nInvNormal, nInvLimbs, 0)
+        MontField256.toMont(nInvLimbs, 0, nInvMont, 0, scratch)
+        val tmp = new Array[Long](L)
+        var i = 0
+        while i < n do
+            MontField256.montMul(data, i * L, nInvMont, 0, tmp, 0, scratch)
+            MontField256.copy(tmp, 0, data, i * L)
+            i += 1
     }
 }
