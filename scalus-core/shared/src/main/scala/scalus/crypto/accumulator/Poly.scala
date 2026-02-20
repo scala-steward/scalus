@@ -2,6 +2,8 @@ package scalus.crypto.accumulator
 
 import scalus.cardano.onchain.plutus.prelude.crypto.bls12_381.Scalar
 
+import java.math.BigInteger as JBigInt
+
 /** Polynomial over the BLS12-381 scalar field (F_q) in ascending degree order [c₀, c₁, c₂, ...].
   *
   * Supports arithmetic operations (add, subtract, multiply, divide, extended GCD) needed for
@@ -18,6 +20,11 @@ object Poly {
     val zero: Poly = Vector.empty
     val one: Poly = Vector(Scalar.one)
 
+    /** Pre-computed java.math.BigInteger field prime for optimized internal operations. */
+    private val jPrime: JBigInt = Scalar.fieldPrime.bigInteger
+    private val jOne: JBigInt = JBigInt.ONE
+    private val jZero: JBigInt = JBigInt.ZERO
+
     def apply(coeffs: BigInt*): Poly =
         stripTrailingZeros(coeffs.toVector.map(n => Scalar.applyUnsafe(n.mod(Scalar.fieldPrime))))
 
@@ -25,22 +32,73 @@ object Poly {
     def fromBigInts(coeffs: Vector[BigInt]): Poly =
         stripTrailingZeros(coeffs.map(n => Scalar.applyUnsafe(n.mod(Scalar.fieldPrime))))
 
+    /** Build a Poly from java.math.BigInteger array (elements must be in [0, prime)). */
+    private def fromJBigIntArray(a: Array[JBigInt], len: Int): Poly = {
+        // Strip trailing zeros and convert
+        var last = len - 1
+        while last >= 0 && a(last).signum() == 0 do last -= 1
+        if last < 0 then Vector.empty
+        else
+            val builder = Vector.newBuilder[Scalar]
+            builder.sizeHint(last + 1)
+            var i = 0
+            while i <= last do
+                builder += Scalar.applyUnsafe(BigInt(a(i)))
+                i += 1
+            builder.result()
+    }
+
     /** Compute product polynomial ∏(x + aᵢ) using a binary subproduct tree.
       *
       * O(n log²n) with NTT, vs O(n²) for iterative multiplication.
+      *
+      * Uses java.math.BigInteger arrays internally to avoid Scalar/BigInt wrapper overhead.
       */
     def productTree(elements: Vector[BigInt]): Poly = {
         if elements.isEmpty then return one
-        var level: Vector[Poly] = elements.map(a => Poly(a, BigInt(1)))
-        while level.length > 1 do
-            level = level
-                .grouped(2)
-                .map {
-                    case pair if pair.length == 2 => pair(0) * pair(1)
-                    case single                   => single(0)
-                }
-                .toVector
-        level.head
+        val n = elements.length
+
+        // Represent each polynomial as (Array[JBigInt], length).
+        // Each linear polynomial (aᵢ + x) has coefficients [aᵢ, 1].
+        var polys = new Array[Array[JBigInt]](n)
+        var lengths = new Array[Int](n)
+        var count = n
+
+        var i = 0
+        while i < n do
+            val arr = new Array[JBigInt](2)
+            arr(0) = elements(i).mod(Scalar.fieldPrime).bigInteger
+            arr(1) = jOne
+            polys(i) = arr
+            lengths(i) = 2
+            i += 1
+
+        // Pairwise multiply up the tree
+        while count > 1 do
+            val newCount = (count + 1) / 2
+            val newPolys = new Array[Array[JBigInt]](newCount)
+            val newLengths = new Array[Int](newCount)
+
+            i = 0
+            var out = 0
+            while i < count - 1 do
+                val result = multiplyJ(polys(i), lengths(i), polys(i + 1), lengths(i + 1))
+                newPolys(out) = result
+                newLengths(out) = result.length
+                i += 2
+                out += 1
+
+            // Odd element carried forward
+            if i < count then
+                newPolys(out) = polys(i)
+                newLengths(out) = lengths(i)
+                out += 1
+
+            polys = newPolys
+            lengths = newLengths
+            count = newCount
+
+        fromJBigIntArray(polys(0), lengths(0))
     }
 
     /** Compute product polynomial ∏(x + aᵢ).
@@ -49,10 +107,77 @@ object Poly {
       */
     def product(elements: Vector[BigInt]): Poly = {
         if elements.length <= 32 then
-            elements.foldLeft(one) { (acc, a) =>
-                acc * Poly(a, BigInt(1))
-            }
+            // For small inputs, iterative approach using optimized JBigInt path
+            val n = elements.length
+            // Start with polynomial [1]
+            var poly = new Array[JBigInt](1)
+            poly(0) = jOne
+            var polyLen = 1
+
+            var i = 0
+            while i < n do
+                val a = elements(i).mod(Scalar.fieldPrime).bigInteger
+                // Multiply poly by (x + a): new[k] = poly[k-1] + a*poly[k]
+                val newLen = polyLen + 1
+                val newPoly = new Array[JBigInt](newLen)
+                newPoly(0) = poly(0).multiply(a).mod(jPrime)
+                var k = 1
+                while k < polyLen do
+                    newPoly(k) = poly(k - 1).add(poly(k).multiply(a)).mod(jPrime)
+                    k += 1
+                newPoly(polyLen) = poly(polyLen - 1)
+                poly = newPoly
+                polyLen = newLen
+                i += 1
+
+            fromJBigIntArray(poly, polyLen)
         else productTree(elements)
+    }
+
+    /** Naive polynomial multiplication using java.math.BigInteger.
+      *
+      * Accumulates products without intermediate mod reduction, then reduces once per coefficient.
+      */
+    private def naiveMultiplyJ(
+        a: Array[JBigInt],
+        aLen: Int,
+        b: Array[JBigInt],
+        bLen: Int
+    ): Array[JBigInt] = {
+        val resultLen = aLen + bLen - 1
+        val result = new Array[JBigInt](resultLen)
+        var k = 0
+        while k < resultLen do
+            result(k) = jZero
+            k += 1
+
+        var i = 0
+        while i < aLen do
+            val ai = a(i)
+            var j = 0
+            while j < bLen do
+                result(i + j) = result(i + j).add(ai.multiply(b(j)))
+                j += 1
+            i += 1
+
+        // Single mod reduction per coefficient
+        i = 0
+        while i < resultLen do
+            result(i) = result(i).mod(jPrime)
+            i += 1
+
+        result
+    }
+
+    /** Internal multiply dispatching between naive and NTT based on polynomial size. */
+    private def multiplyJ(
+        a: Array[JBigInt],
+        aLen: Int,
+        b: Array[JBigInt],
+        bLen: Int
+    ): Array[JBigInt] = {
+        if aLen < NTT_THRESHOLD || bLen < NTT_THRESHOLD then naiveMultiplyJ(a, aLen, b, bLen)
+        else NTT.multiplyJ(a, aLen, b, bLen)
     }
 
     private def stripTrailingZeros(poly: Vector[Scalar]): Vector[Scalar] = {

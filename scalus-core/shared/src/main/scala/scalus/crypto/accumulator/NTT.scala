@@ -2,6 +2,8 @@ package scalus.crypto.accumulator
 
 import scalus.cardano.onchain.plutus.prelude.crypto.bls12_381.Scalar
 
+import java.math.BigInteger as JBigInt
+
 /** Number Theoretic Transform over a prime field F_p.
   *
   * The prime p must have sufficient two-adicity for the desired NTT size: p - 1 must be divisible
@@ -23,6 +25,11 @@ object NTT {
 
     /** Two-adicity of BLS12-381 scalar field: q - 1 = 2^32 · t, max NTT size = 2^32. */
     val defaultTwoAdicity: Int = 32
+
+    // Pre-computed java.math.BigInteger constants for the hot path
+    private val jPrime: JBigInt = defaultPrime.bigInteger
+    private val jRootOfUnity: JBigInt = defaultRootOfUnity.bigInteger
+    private val jTwo: JBigInt = JBigInt.valueOf(2)
 
     /** Get primitive n-th root of unity (n must be power of 2).
       *
@@ -48,6 +55,12 @@ object NTT {
         require(logN <= twoAdicity, s"NTT size 2^$logN exceeds two-adicity $twoAdicity")
         val exp = BigInt(1) << (twoAdicity - logN)
         maxRootOfUnity.modPow(exp, prime)
+    }
+
+    private def principalRootJ(n: Int): JBigInt = {
+        val logN = Integer.numberOfTrailingZeros(n)
+        val exp = JBigInt.ONE.shiftLeft(defaultTwoAdicity - logN)
+        jRootOfUnity.modPow(exp, jPrime)
     }
 
     private def bitReverse(i: Int, logN: Int): Int = {
@@ -106,6 +119,54 @@ object NTT {
             halfSize = size
     }
 
+    /** Forward NTT using java.math.BigInteger for reduced allocation overhead. */
+    private[accumulator] def forwardJ(
+        a: Array[JBigInt],
+        n: Int,
+        omega: JBigInt,
+        prime: JBigInt
+    ): Unit = {
+        val logN = Integer.numberOfTrailingZeros(n)
+        // Bit-reversal permutation
+        var i = 0
+        while i < n do
+            val j = bitReverse(i, logN)
+            if i < j then
+                val tmp = a(i)
+                a(i) = a(j)
+                a(j) = tmp
+            i += 1
+
+        // Cooley-Tukey DIT butterflies with pre-computed twiddle factors.
+        // Use conditional add/subtract instead of mod where possible:
+        // Since u, v are in [0, prime), u+v is in [0, 2*prime) — subtract prime if >= prime.
+        // u-v is in (-prime, prime) — add prime if negative.
+        var halfSize = 1
+        while halfSize < n do
+            val size = halfSize << 1
+            val step = omega.modPow(JBigInt.valueOf(n / size), prime)
+            // Pre-compute twiddle factors: twiddles(j) = step^j mod prime
+            val twiddles = new Array[JBigInt](halfSize)
+            twiddles(0) = JBigInt.ONE
+            var t = 1
+            while t < halfSize do
+                twiddles(t) = twiddles(t - 1).multiply(step).mod(prime)
+                t += 1
+            var k = 0
+            while k < n do
+                var j = 0
+                while j < halfSize do
+                    val u = a(k + j)
+                    val v = a(k + j + halfSize).multiply(twiddles(j)).mod(prime)
+                    val sum = u.add(v)
+                    a(k + j) = if sum.compareTo(prime) >= 0 then sum.subtract(prime) else sum
+                    val diff = u.subtract(v)
+                    a(k + j + halfSize) = if diff.signum() < 0 then diff.add(prime) else diff
+                    j += 1
+                k += size
+            halfSize = size
+    }
+
     /** Inverse NTT, in-place, scales by n^{-1}.
       *
       * Transforms evaluations back to polynomial coefficients.
@@ -126,6 +187,22 @@ object NTT {
         var i = 0
         while i < n do
             a(i) = a(i) * nInv % prime
+            i += 1
+    }
+
+    /** Inverse NTT using java.math.BigInteger. */
+    private[accumulator] def inverseJ(
+        a: Array[JBigInt],
+        n: Int,
+        omega: JBigInt,
+        prime: JBigInt
+    ): Unit = {
+        val omegaInv = omega.modPow(prime.subtract(jTwo), prime)
+        forwardJ(a, n, omegaInv, prime)
+        val nInv = JBigInt.valueOf(n).modPow(prime.subtract(jTwo), prime)
+        var i = 0
+        while i < n do
+            a(i) = a(i).multiply(nInv).mod(prime)
             i += 1
     }
 
@@ -174,5 +251,61 @@ object NTT {
         inverse(fa, n, omega, prime)
 
         fa.take(resultLen).toVector
+    }
+
+    /** Multiply two polynomials via NTT using java.math.BigInteger arrays.
+      *
+      * Optimized for the BLS12-381 scalar field. Avoids Scala BigInt wrapper overhead.
+      *
+      * @param a
+      *   first polynomial coefficients (elements must be in [0, prime))
+      * @param aLen
+      *   number of valid elements in a
+      * @param b
+      *   second polynomial coefficients (elements must be in [0, prime))
+      * @param bLen
+      *   number of valid elements in b
+      * @return
+      *   product polynomial coefficients as a new array, trimmed to result length
+      */
+    private[accumulator] def multiplyJ(
+        a: Array[JBigInt],
+        aLen: Int,
+        b: Array[JBigInt],
+        bLen: Int
+    ): Array[JBigInt] = {
+        if aLen == 0 || bLen == 0 then return Array.empty
+        val resultLen = aLen + bLen - 1
+        var n = 1
+        while n < resultLen do n <<= 1
+
+        val omega = principalRootJ(n)
+        val prime = jPrime
+
+        val fa = new Array[JBigInt](n)
+        val fb = new Array[JBigInt](n)
+        System.arraycopy(a, 0, fa, 0, aLen)
+        System.arraycopy(b, 0, fb, 0, bLen)
+        var i = aLen
+        while i < n do
+            fa(i) = JBigInt.ZERO
+            i += 1
+        i = bLen
+        while i < n do
+            fb(i) = JBigInt.ZERO
+            i += 1
+
+        forwardJ(fa, n, omega, prime)
+        forwardJ(fb, n, omega, prime)
+
+        i = 0
+        while i < n do
+            fa(i) = fa(i).multiply(fb(i)).mod(prime)
+            i += 1
+
+        inverseJ(fa, n, omega, prime)
+
+        if resultLen < n then java.util.Arrays.copyOf(fa, resultLen)
+        else fa
     }
 }
