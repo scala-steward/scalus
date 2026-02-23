@@ -14,6 +14,7 @@ import scalus.cardano.node.{BlockchainProvider, NetworkSubmitError, NodeSubmitEr
 
 import java.time.Instant
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success, Try}
 
 /** Transaction builder for Decentralized Identity operations.
   *
@@ -45,27 +46,36 @@ case class DecentralizedIdentityTransactions(
     // ===== Helper methods =====
 
     /** Find input index for a given UTXO in a transaction */
-    private def findInputIndex(tx: Transaction, utxo: Utxo): Int =
-        tx.body.value.inputs.toSeq.indexWhere { input =>
+    private def findInputIndex(tx: Transaction, utxo: Utxo): Int = {
+        val idx = tx.body.value.inputs.toSeq.indexWhere { input =>
             input.transactionId == utxo.input.transactionId &&
             input.index == utxo.input.index
         }
+        require(idx >= 0, s"Input not found in transaction: ${utxo.input}")
+        idx
+    }
 
     /** Find reference input index for a given UTXO in a transaction */
-    private def findRefInputIndex(tx: Transaction, utxo: Utxo): Int =
-        tx.body.value.referenceInputs.toSeq.indexWhere { input =>
+    private def findRefInputIndex(tx: Transaction, utxo: Utxo): Int = {
+        val idx = tx.body.value.referenceInputs.toSeq.indexWhere { input =>
             input.transactionId == utxo.input.transactionId &&
             input.index == utxo.input.index
         }
+        require(idx >= 0, s"Reference input not found in transaction: ${utxo.input}")
+        idx
+    }
 
     /** Find output index by address and asset */
-    private def findOutputIndex(tx: Transaction, address: Address, asset: ByteString): Int =
-        tx.body.value.outputs.toSeq.indexWhere { output =>
+    private def findOutputIndex(tx: Transaction, address: Address, asset: ByteString): Int = {
+        val idx = tx.body.value.outputs.toSeq.indexWhere { output =>
             output.value.address == address &&
             output.value.value.assets.assets.exists { case (cs, tokens) =>
                 cs == policyId && tokens.get(AssetName(asset)).exists(_ > 0)
             }
         }
+        require(idx >= 0, s"Output not found for address $address with asset")
+        idx
+    }
 
     // ===== Public API =====
 
@@ -312,13 +322,18 @@ case class DecentralizedIdentityTransactions(
             .transaction
     }
 
-    // ===== Retry logic =====
+}
+
+object DecentralizedIdentityTransactions {
 
     /** Submit a transaction with retry logic for TOCTOU race conditions.
       *
       * When a UTXO is consumed between query time and submission time, the transaction fails with
       * `UtxoNotAvailable`. This method re-queries UTXOs and rebuilds the transaction on retryable
       * errors.
+      *
+      * Note: uses `Thread.sleep` for delay, which blocks a thread pool thread. This is
+      * intentionally simple for example code; production code should use a scheduler-based delay.
       *
       * @param provider
       *   blockchain provider for querying UTXOs and submitting transactions
@@ -348,23 +363,35 @@ case class DecentralizedIdentityTransactions(
                       Left(NetworkSubmitError.InternalError(s"Failed to query UTXOs: ${err}"))
                     )
                 case Right(utxos) =>
-                    val tx = buildTx(utxos)
-                    provider.submit(tx).flatMap {
-                        case right @ Right(_) => Future.successful(right)
-                        case left @ Left(err) =>
-                            if retriesLeft > 0 && isRetryable(err) then
-                                Future {
-                                    Thread.sleep(delayMs)
-                                }.flatMap(_ => attempt(retriesLeft - 1))
-                            else Future.successful(left)
-                    }
+                    Try(buildTx(utxos)) match
+                        case Failure(ex) =>
+                            Future.successful(
+                              Left(
+                                NetworkSubmitError.InternalError(
+                                  s"Failed to build transaction: ${ex.getMessage}",
+                                  Some(ex)
+                                )
+                              )
+                            )
+                        case Success(tx) =>
+                            provider.submit(tx).flatMap {
+                                case right @ Right(_) => Future.successful(right)
+                                case left @ Left(err) =>
+                                    if retriesLeft > 0 && isRetryable(err) then
+                                        Future {
+                                            Thread.sleep(delayMs)
+                                        }.flatMap(_ => attempt(retriesLeft - 1))
+                                    else Future.successful(left)
+                            }
             }
 
         attempt(maxRetries)
     }
 
     private def isRetryable(error: SubmitError): Boolean = error match
-        case _: NetworkSubmitError               => true
-        case _: NodeSubmitError.UtxoNotAvailable => true
-        case _                                   => false
+        case _: NetworkSubmitError.ConnectionError => true
+        case _: NetworkSubmitError.InternalError   => true
+        case _: NetworkSubmitError.MempoolFull     => true
+        case _: NodeSubmitError.UtxoNotAvailable   => true
+        case _                                     => false
 }

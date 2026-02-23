@@ -85,9 +85,10 @@ object DecentralizedIdentityValidator extends DataParameterizedValidator {
         val r = redeemer.to[MintAction]
         r match {
             case MintAction.CreateIdentity(seedIndex, identityOutIndex) =>
-                // One-shot: must spend the seed UTXO
-                val isSpent = tx.inputs.get(seedIndex).isDefined
-                require(isSpent, "Must spend seed UTxO")
+                // One-shot: must spend the exact parameterized seed UTXO
+                val seedRef = param.to[TxOutRef]
+                val spentInput = tx.inputs.at(seedIndex)
+                require(spentInput.outRef === seedRef, "Must spend the parameterized seed UTxO")
 
                 // Identity output must be at script address with inline datum
                 val identityOutput = tx.outputs.at(identityOutIndex)

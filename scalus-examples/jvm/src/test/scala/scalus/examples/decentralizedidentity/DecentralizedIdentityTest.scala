@@ -434,7 +434,7 @@ class DecentralizedIdentityTest extends AnyFunSuite, ScalusTest {
         val seedUtxo = Utxo(utxos.head)
         val txCreator = createTxCreator(seedUtxo)
 
-        val result = txCreator
+        val result = DecentralizedIdentityTransactions
             .submitWithRetry(provider, Alice.address) { utxos =>
                 txCreator.createIdentity(utxos, Alice.addrKeyHash, Alice.address, Alice.signer)
             }
