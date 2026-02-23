@@ -677,6 +677,24 @@ object Value extends ValueOffchainOps {
           */
         def getLovelace: BigInt = quantityOf(adaPolicyId, adaTokenName)
 
+        /** Returns the amount of Lovelace in this `Value`.
+          *
+          * This is more efficient version of `getLovelace`. If the `Value` contains no lovelace, it
+          * fails.
+          *
+          * This is useful when we are guaranteed to have lovelace in a `Value` and want to avoid
+          * the overhead of a map lookup. For example, `Value` in `TxOut` always has lovelace.
+          *
+          * @return
+          *   The amount of Lovelace in this `Value`
+          * @example
+          *   {{{
+          *   val value = Value.lovelace(BigInt(1000000))
+          *   value.lovelaceAmount === BigInt(1000000)
+          *   }}}
+          */
+        def lovelaceAmount: BigInt = v.toSortedMap.toList.head._2.toList.head._2
+
         /** Checks if this `Value` is zero, meaning it contains no tokens or currency symbols.
           *
           * @return

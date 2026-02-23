@@ -1094,6 +1094,37 @@ class ValueTest extends AnyFunSuite with EvalTestKit with ArbitraryInstances {
         )
     }
 
+    test("lovelaceAmount") {
+        // returns correct lovelace for lovelace-only value
+        assertEvalWithBudget(
+          Value.lovelace(BigInt(1000)).lovelaceAmount,
+          BigInt(1000),
+          ExUnits(memory = 58251, steps = 16716620)
+        )
+
+        // returns correct lovelace for value with lovelace + native asset
+        assertEvalWithBudget(
+          Value
+              .fromList(
+                List(
+                  (
+                    utf8"PolicyId",
+                    List((utf8"TokenName", BigInt(500)))
+                  ),
+                  (Value.adaPolicyId, List((Value.adaTokenName, BigInt(2000))))
+                )
+              )
+              .lovelaceAmount,
+          BigInt(2000),
+          ExUnits(memory = 261274, steps = 74062546)
+        )
+
+        // fails on Value.zero (empty list)
+        assertEvalFails[NoSuchElementException] {
+            Value.zero.lovelaceAmount
+        }
+    }
+
     test("isZero") {
         checkEval { (value: Value) =>
             if value.isZero then value.toSortedMap.isEmpty else value.nonZero
