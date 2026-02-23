@@ -171,7 +171,6 @@ lazy val jvm: Project = project
     .aggregate(
       scalusPlugin,
       scalus.jvm,
-      scalusPluginTests,
       scalusUplcJitCompiler,
       scalusCardanoLedger.jvm,
       scalusTestkit.jvm,
@@ -288,21 +287,6 @@ lazy val scalusPlugin = project
           Seq.empty[File]
       }.taskValue,
       Compile / compile := (Compile / compile).dependsOn(copySharedFiles).value
-    )
-
-// Used only for Scalus compiler plugin development
-// I use it to not recompile all the tests in the main project
-// TODO remove or comment out
-lazy val scalusPluginTests = project
-    .in(file("scalus-plugin-tests"))
-    .dependsOn(scalus.jvm)
-    .disablePlugins(MimaPlugin) // disable Migration Manager for Scala
-    .settings(
-      name := "scalus-plugin-tests",
-      publish / skip := true,
-      PluginDependency,
-      libraryDependencies += "org.scalatest" %%% "scalatest" % scalatestVersion % "test",
-      libraryDependencies += "org.scalatestplus" %%% "scalacheck-1-18" % scalatestPlusScalacheckVersion % "test"
     )
 
 // Scalus Core and Standard Library for JVM and JS
