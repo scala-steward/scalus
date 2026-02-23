@@ -593,6 +593,28 @@ class CompilerPluginToSIRTest extends AnyFunSuite with ScalaCheckPropertyChecks:
         assert(offsetOf[CompilerPluginToSIRSpecScope.ThreeInts](_.c) == BigInt(2))
     }
 
+    test("compile -> operator as Tuple2") {
+        val compiled = compile {
+            BigInt(1) -> BigInt(2)
+        }
+        val evaluated = compiled.toUplc().evaluate
+        // Should produce the same result as (BigInt(1), BigInt(2))
+        val compiledTuple = compile {
+            (BigInt(1), BigInt(2))
+        }
+        val evaluatedTuple = compiledTuple.toUplc().evaluate
+        assert(evaluated == evaluatedTuple)
+    }
+
+    test("compile -> operator field access") {
+        val compiled = compile {
+            val pair = BigInt(1) -> BigInt(2)
+            pair._1 + pair._2
+        }
+        val evaluated = compiled.toUplc().evaluate
+        assert(evaluated == 3.asTerm)
+    }
+
     test("@Ignore annotation") {
         @Ignore
         def foo() = 1

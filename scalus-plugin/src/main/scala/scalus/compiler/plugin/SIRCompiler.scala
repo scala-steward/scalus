@@ -2743,6 +2743,21 @@ final class SIRCompiler(
                 compileNewConstructor(env, f.tpe, tree.tpe.widen, args, tree)
             case Apply(con @ Select(f, nme.CONSTRUCTOR), args) =>
                 compileNewConstructor(env, f.tpe, tree.tpe.widen, args, tree)
+            // a -> b (ArrowAssoc syntax for creating Tuple2)
+            // ArrowAssoc is from scala-library 2.13.x (no TASTy),
+            // so we special-case it like Tuple2.apply
+            case Apply(Select(qual, name), immutable.List(rhs))
+                if name.show == "->" && tree.tpe.typeConstructor =:= Tuple2Symbol.typeRef =>
+                val lhs = qual match
+                    case Apply(_, immutable.List(inner)) => inner // unwrap ArrowAssoc(a)
+                    case _                               => qual
+                compileNewConstructor(env, tree.tpe, tree.tpe.widen, List(lhs, rhs), tree)
+            case Apply(TypeApply(Select(qual, name), _), immutable.List(rhs))
+                if name.show == "->" && tree.tpe.typeConstructor =:= Tuple2Symbol.typeRef =>
+                val lhs = qual match
+                    case Apply(_, immutable.List(inner)) => inner
+                    case _                               => qual
+                compileNewConstructor(env, tree.tpe, tree.tpe.widen, List(lhs, rhs), tree)
             // (a, b) as scala.Tuple2.apply(a, b)
             // we need to special-case it because we use scala-library 2.13.x
             // which does not include TASTy so we can't access the method body
