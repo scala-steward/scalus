@@ -812,6 +812,32 @@ case class TxBuilder(
         registerDebugScript(compiled).mint(compiled.script, assets, redeemerBuilder)
     }
 
+    /** Mints or burns native tokens with a delayed redeemer and required signers using a
+      * [[CompiledPlutus]] script.
+      *
+      * @param compiled
+      *   compiled Plutus script (carries SIR for diagnostic replay)
+      * @param assets
+      *   map of asset names to amounts (positive for minting, negative for burning)
+      * @param redeemerBuilder
+      *   function that computes the redeemer from the assembled transaction
+      * @param requiredSigners
+      *   set of public key hashes that must sign the transaction
+      */
+    def mint(
+        compiled: CompiledPlutus[?],
+        assets: collection.Map[AssetName, Long],
+        redeemerBuilder: Transaction => Data,
+        requiredSigners: Set[AddrKeyHash]
+    ): TxBuilder = {
+        registerDebugScript(compiled).mint(
+          compiled.script,
+          assets,
+          redeemerBuilder,
+          requiredSigners
+        )
+    }
+
     /** Mints or burns native tokens with a delayed redeemer and attached script.
       *
       * Use this method when the redeemer depends on the final transaction structure (e.g., for
@@ -829,6 +855,25 @@ case class TxBuilder(
         script: PlutusScript,
         assets: collection.Map[AssetName, Long],
         redeemerBuilder: Transaction => Data
+    ): TxBuilder = mint(script, assets, redeemerBuilder, Set.empty[AddrKeyHash])
+
+    /** Mints or burns native tokens with a delayed redeemer and required signers, with attached
+      * script.
+      *
+      * @param script
+      *   the minting policy script
+      * @param assets
+      *   map of asset names to amounts (positive for minting, negative for burning)
+      * @param redeemerBuilder
+      *   function that computes the redeemer from the assembled transaction
+      * @param requiredSigners
+      *   set of public key hashes that must sign the transaction
+      */
+    def mint(
+        script: PlutusScript,
+        assets: collection.Map[AssetName, Long],
+        redeemerBuilder: Transaction => Data,
+        requiredSigners: Set[AddrKeyHash]
     ): TxBuilder = {
         val mintSteps = assets.map { case (assetName, amount) =>
             TransactionBuilderStep.Mint(
@@ -838,7 +883,7 @@ case class TxBuilder(
               witness = TwoArgumentPlutusScriptWitness(
                 scriptSource = ScriptSource.PlutusScriptValue(script),
                 redeemerBuilder = redeemerBuilder,
-                additionalSigners = Set.empty
+                additionalSigners = requiredSigners.map(ExpectedSigner.apply)
               )
             )
         }.toSeq
