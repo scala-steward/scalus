@@ -510,8 +510,7 @@ class AuctionInstance(
     compiledContract: PlutusV3[Data => Unit]
 ) {
     private def env: CardanoInfo = provider.cardanoInfo
-    private val script = compiledContract.script
-    private val scriptHash: scalus.cardano.ledger.ScriptHash = script.scriptHash
+    private val scriptHash: scalus.cardano.ledger.ScriptHash = compiledContract.script.scriptHash
     def scriptAddress: CardanoAddress = compiledContract.address(env.network)
 
     /** Extract PubKeyHash from a ShelleyAddress */
@@ -592,7 +591,7 @@ class AuctionInstance(
             // Spend the oneShot UTxO and mint the auction NFT
             tx <- TxBuilder(env)
                 .spend(oneShotUtxo) // Spend the one-shot UTxO (pubkey-protected)
-                .mint(script, Map(nftAsset -> 1L), redeemer, Set(sellerAddrKeyHash))
+                .mint(compiledContract, Map(nftAsset -> 1L), redeemer, Set(sellerAddrKeyHash))
                 .payTo(scriptAddress, LedgerValue(initialValue) + mintedValue, datum)
                 .validTo(Instant.ofEpochMilli(auctionEndTime.toLong - 1000))
                 .complete(provider, sellerAddress)
@@ -679,7 +678,7 @@ class AuctionInstance(
                           )
                           .toData
                   },
-                  script,
+                  compiledContract,
                   Set(AddrKeyHash.fromByteString(bidderPkh.hash))
                 )
                 .payTo(scriptAddress, newAuctionValue, newDatum)
@@ -770,7 +769,7 @@ class AuctionInstance(
                           .End(BigInt(inputIdx), BigInt(sellerOutputIdx), BigInt(winnerOutputIdx))
                           .toData
                   },
-                  script,
+                  compiledContract,
                   spendRequiredSigners
                 )
                 .validFrom(Instant.ofEpochMilli(currentDatum.auctionEndTime.toLong + 1000))

@@ -12,7 +12,6 @@ case class VaultTransactions(
     signer: TransactionSigner,
     contract: PlutusV3[Data => Unit]
 ) {
-    def script: Script.PlutusV3 = contract.script
     val scriptAddress: Address = contract.address(env.network)
 
     def lock(
@@ -71,7 +70,7 @@ case class VaultTransactions(
         TxBuilder(env, evaluator)
             .spend(utxos)
             .collaterals(collateralUtxos)
-            .spend(vaultUtxo, Action.InitiateWithdrawal, script, Set(ownerAddrKeyHash))
+            .spend(vaultUtxo, Action.InitiateWithdrawal, contract, Set(ownerAddrKeyHash))
             .validFrom(java.time.Instant.ofEpochMilli(validityStartTime))
             .payTo(scriptAddress, vaultValue, newDatum)
             .build(changeTo = changeAddress)
@@ -106,7 +105,7 @@ case class VaultTransactions(
         TxBuilder(env, evaluator)
             .spend(utxos)
             .collaterals(collateralUtxos)
-            .spend(vaultUtxo, Action.Deposit, script)
+            .spend(vaultUtxo, Action.Deposit, contract)
             .payTo(scriptAddress, newValue, newDatum)
             .build(changeTo = changeAddress)
             .sign(signer)
@@ -133,7 +132,7 @@ case class VaultTransactions(
         TxBuilder(env, evaluator)
             .spend(utxos)
             .collaterals(collateralUtxos)
-            .spend(vaultUtxo, Action.FinalizeWithdrawal, script)
+            .spend(vaultUtxo, Action.FinalizeWithdrawal, contract)
             .validFrom(java.time.Instant.ofEpochMilli(validityStartTime))
             .payTo(ownerAddress, vaultValue)
             .build(changeTo = changeAddress)

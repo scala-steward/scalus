@@ -14,7 +14,6 @@ case class LotteryTransactions(
     evaluator: PlutusScriptEvaluator,
     contract: PlutusV3[Data => Unit]
 ) {
-    def script: Script.PlutusV3 = contract.script
     val scriptAddress: Address = contract.address(env.network)
 
     /** Create initial lottery UTXO. Both players contribute equal bet amounts and both must sign.
@@ -81,7 +80,7 @@ case class LotteryTransactions(
         )
 
         TxBuilder(env, evaluator)
-            .spend(lotteryUtxo, redeemer, script, Set(playerOnePkh))
+            .spend(lotteryUtxo, redeemer, contract, Set(playerOnePkh))
             .payTo(scriptAddress, lotteryUtxo.output.value, newState)
             .validTo(validTo)
             .complete(availableUtxos = utxos, sponsor)
@@ -115,7 +114,7 @@ case class LotteryTransactions(
         )
 
         TxBuilder(env, evaluator)
-            .spend(lotteryUtxo, redeemer, script, Set(playerTwoPkh))
+            .spend(lotteryUtxo, redeemer, contract, Set(playerTwoPkh))
             .payTo(scriptAddress, lotteryUtxo.output.value, newState)
             .validTo(validTo)
             .complete(availableUtxos = utxos, sponsor)
@@ -137,7 +136,7 @@ case class LotteryTransactions(
         val redeemer = Action.Timeout(preimage)
 
         TxBuilder(env, evaluator)
-            .spend(lotteryUtxo, redeemer, script, Set(claimantPkh))
+            .spend(lotteryUtxo, redeemer, contract, Set(claimantPkh))
             .payTo(payeeAddress, lotteryUtxo.output.value)
             .validFrom(validFrom)
             .complete(availableUtxos = utxos, sponsor)
@@ -160,7 +159,7 @@ case class LotteryTransactions(
         val redeemer = Action.Lose(preimage, winnerOutputIdx)
 
         TxBuilder(env, evaluator)
-            .spend(lotteryUtxo, redeemer, script, Set(loserPkh))
+            .spend(lotteryUtxo, redeemer, contract, Set(loserPkh))
             .payTo(winnerAddress, lotteryUtxo.output.value)
             .validTo(validTo)
             .complete(availableUtxos = utxos, sponsor)

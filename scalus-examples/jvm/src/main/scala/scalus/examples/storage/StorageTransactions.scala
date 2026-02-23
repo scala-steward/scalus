@@ -23,7 +23,7 @@ case class StorageTransactions(
     config: Config,
     chunkSize: Int
 ):
-    def script: Script.PlutusV3 = contract.script
+    val scriptHash: ScriptHash = contract.script.scriptHash
 
     /** Build all transactions needed to store data.
       *
@@ -95,7 +95,7 @@ case class StorageTransactions(
 
         // nft for the output, roughly min ada for simplification
         val headValue = Value.asset(
-          script.scriptHash,
+          scriptHash,
           AssetName(headTokenName),
           1,
           lovelace = Coin.ada(2)
@@ -104,7 +104,7 @@ case class StorageTransactions(
         TxBuilder(env, evaluator)
             .spend(Utxo(initIn -> initOut))
             .mint(
-              script,
+              contract,
               Map(AssetName(headTokenName) -> 1L),
               _ => UnorderedNodeAction.Init.toData
             )
@@ -198,7 +198,7 @@ case class StorageTransactions(
 
         // Value for new node output: ADA + minted NFT
         val newNodeValue = Value.asset(
-          script.scriptHash,
+          scriptHash,
           AssetName(nodeTokenName),
           1,
           lovelace = Coin.ada(2)
@@ -214,7 +214,7 @@ case class StorageTransactions(
         TxBuilder(env, evaluator)
             .spend(tailUtxo)
             .mint(
-              script,
+              contract,
               Map(AssetName(nodeTokenName) -> 1L),
               redeemer,
               Set(userPkh)
@@ -238,7 +238,7 @@ case class StorageTransactions(
             .find { case (_, output) =>
                 // Find UTxO with LinkedList NFT and ref = None (tail node)
                 output.value.assets.assets.exists { case (cs, tokens) =>
-                    cs == script.scriptHash && tokens.keys.exists(tn =>
+                    cs == scriptHash && tokens.keys.exists(tn =>
                         tn.bytes.toHex
                             .startsWith(ByteString.fromArray(LinkedList.nodeToken().bytes).toHex)
                     )

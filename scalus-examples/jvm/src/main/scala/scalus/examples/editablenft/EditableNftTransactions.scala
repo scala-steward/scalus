@@ -102,7 +102,7 @@ case class EditableNftTransactions(
         TxBuilder(env, evaluator)
             .spend(seed)
             .mint(
-              parameterizedScript.script,
+              parameterizedScript,
               Map(AssetName(refAsset) -> 1L, AssetName(userAsset) -> 1L),
               buildMintRedeemer
             )
@@ -129,7 +129,7 @@ case class EditableNftTransactions(
             .spend(
               refNftUtxo,
               buildContinuationSpendRedeemer(userNftUtxo, oldDatum.refNftName),
-              parameterizedScript.script,
+              parameterizedScript,
               Set.empty
             )
             .spend(userNftUtxo)
@@ -154,7 +154,7 @@ case class EditableNftTransactions(
             .spend(
               refNftUtxo,
               buildContinuationSpendRedeemer(userNftUtxo, oldDatum.refNftName),
-              parameterizedScript.script,
+              parameterizedScript,
               Set.empty
             )
             .spend(userNftUtxo)
@@ -182,10 +182,10 @@ case class EditableNftTransactions(
         }
 
         TxBuilder(env, evaluator)
-            .spend(refNftUtxo, buildBurnSpendRedeemer, parameterizedScript.script, Set.empty)
+            .spend(refNftUtxo, buildBurnSpendRedeemer, parameterizedScript, Set.empty)
             .spend(userNftUtxo)
             .mint(
-              parameterizedScript.script,
+              parameterizedScript,
               Map(refAsset -> -1L, userAsset -> -1L),
               _ => MintRedeemer.Burn.toData
             )

@@ -30,8 +30,7 @@ class CrowdfundingEndpoints(
     donationMintingContract: PlutusV3[Data => Data => Unit]
 ) {
     private def env: CardanoInfo = provider.cardanoInfo
-    private val crowdfundingScript = crowdfundingContract.script
-    private val crowdfundingPolicyId = crowdfundingScript.scriptHash
+    private val crowdfundingPolicyId = crowdfundingContract.script.scriptHash
     def scriptAddress: CardanoAddress = crowdfundingContract.address(env.network)
 
     /** Extract PubKeyHash from a ShelleyAddress */
@@ -142,7 +141,12 @@ class CrowdfundingEndpoints(
                 .spend(
                   seedUtxo
                 ) // Must spend this UTxO - validator derives campaignId from first input
-                .mint(crowdfundingScript, Map(nftAsset -> 1L), redeemer, Set(recipientAddrKeyHash))
+                .mint(
+                  crowdfundingContract,
+                  Map(nftAsset -> 1L),
+                  redeemer,
+                  Set(recipientAddrKeyHash)
+                )
                 .payTo(scriptAddress, LedgerValue(initialValue) + mintedValue, datum)
                 .validTo(Instant.ofEpochMilli(deadline - 1000))
                 .complete(provider, recipientAddress)
@@ -252,7 +256,7 @@ class CrowdfundingEndpoints(
             }
 
             tx <- TxBuilder(env)
-                .spend(campaignUtxo, donateRedeemer, crowdfundingScript, Set.empty)
+                .spend(campaignUtxo, donateRedeemer, crowdfundingContract, Set.empty)
                 .mint(donationScript, Map(donationAsset -> 1L), donateRedeemer)
                 .payTo(scriptAddress, newCampaignValue, newDatum) // Updated campaign UTxO
                 // Unified donation UTxO: ADA + donation token + DonationDatum (at script address)
@@ -376,13 +380,13 @@ class CrowdfundingEndpoints(
             builderWithCampaign = TxBuilder(env).spend(
               campaignUtxo,
               redeemerBuilder = withdrawRedeemer,
-              crowdfundingScript,
+              crowdfundingContract,
               Set(recipientAddrKeyHash)
             )
 
             // Spend donation UTxOs (at script address - no donor signatures needed)
             builderWithDonations = donationUtxos.foldLeft(builderWithCampaign) { (builder, utxo) =>
-                builder.spend(utxo, withdrawRedeemer, crowdfundingScript, Set.empty)
+                builder.spend(utxo, withdrawRedeemer, crowdfundingContract, Set.empty)
             }
 
             // Burn donation tokens
@@ -535,13 +539,13 @@ class CrowdfundingEndpoints(
             builderWithCampaign = TxBuilder(env).spend(
               campaignUtxo,
               redeemerBuilder = reclaimRedeemer,
-              crowdfundingScript,
+              crowdfundingContract,
               donorKeyHashes // Include donor key hashes for fee estimation
             )
 
             // Spend donation UTxOs (at script address)
             builderWithDonations = donationUtxos.foldLeft(builderWithCampaign) { (builder, utxo) =>
-                builder.spend(utxo, reclaimRedeemer, crowdfundingScript, Set.empty)
+                builder.spend(utxo, reclaimRedeemer, crowdfundingContract, Set.empty)
             }
 
             // Burn donation tokens

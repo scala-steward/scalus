@@ -13,7 +13,6 @@ case class HtlcTransactions(
     env: CardanoInfo,
     contract: PlutusV3[Data => Unit]
 ) {
-    private val script: Script.PlutusV3 = contract.script
     private val scriptAddress: Address = contract.address(env.network)
 
     private val builder = TxBuilder(env)
@@ -50,7 +49,7 @@ case class HtlcTransactions(
         val redeemer = Action.Reveal(preimage)
 
         builder
-            .spend(lockedUtxo, redeemer, script, Set(receiverPkh))
+            .spend(lockedUtxo, redeemer, contract, Set(receiverPkh))
             .payTo(payeeAddress, lockedUtxo.output.value)
             .validTo(validTo)
             .complete(availableUtxos = utxos, sponsor)
@@ -70,7 +69,7 @@ case class HtlcTransactions(
         val redeemer = Action.Timeout
 
         builder
-            .spend(lockedUtxo, redeemer, script, Set(committerPkh))
+            .spend(lockedUtxo, redeemer, contract, Set(committerPkh))
             .payTo(payeeAddress, lockedUtxo.output.value)
             .validFrom(validFrom)
             .complete(availableUtxos = utxos, sponsor)

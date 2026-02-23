@@ -104,7 +104,7 @@ class StorageTest extends AnyFunSuite, ScalusTest:
             .get
             .filter { case (_, output) =>
                 output.value.assets.assets.exists { case (cs, _) =>
-                    cs == creator.script.scriptHash
+                    cs == creator.scriptHash
                 }
             }
 
@@ -172,7 +172,7 @@ class StorageTest extends AnyFunSuite, ScalusTest:
             .get
             .filter { case (_, output) =>
                 output.value.assets.assets.exists { case (cs, _) =>
-                    cs == smallChunkCreator.script.scriptHash
+                    cs == smallChunkCreator.scriptHash
                 }
             }
 
@@ -182,7 +182,7 @@ class StorageTest extends AnyFunSuite, ScalusTest:
         )
 
         // Reconstruct data by following the ref chain from head
-        val reconstructed = reconstructData(storageUtxos, smallChunkCreator.script.scriptHash)
+        val reconstructed = reconstructData(storageUtxos, smallChunkCreator.scriptHash)
         assert(reconstructed == data, s"Reconstructed data doesn't match original")
 
     /** Reconstruct data from LinkedList UTxOs by following the ref chain.
