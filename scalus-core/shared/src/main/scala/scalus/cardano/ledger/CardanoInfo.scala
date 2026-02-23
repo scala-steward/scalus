@@ -42,6 +42,33 @@ object CardanoInfo {
           SlotConfig.preview
         )
 
+    /** Verify that actual CardanoInfo matches expected. Returns Right(actual) if they match, Left
+      * with differences otherwise. Checks network, slotConfig, and all protocol parameter fields.
+      */
+    def verify(
+        expected: CardanoInfo,
+        actual: CardanoInfo
+    ): Either[Seq[ProtocolParams.ParamDiff], CardanoInfo] = {
+        val topLevelDiffs = Seq.newBuilder[ProtocolParams.ParamDiff]
+        if expected.network != actual.network then
+            topLevelDiffs += ProtocolParams.ParamDiff(
+              "network",
+              expected.network.toString,
+              actual.network.toString
+            )
+        if expected.slotConfig != actual.slotConfig then
+            topLevelDiffs += ProtocolParams.ParamDiff(
+              "slotConfig",
+              expected.slotConfig.toString,
+              actual.slotConfig.toString
+            )
+        val allDiffs =
+            topLevelDiffs
+                .result() ++ ProtocolParams.diff(expected.protocolParams, actual.protocolParams)
+        if allDiffs.isEmpty then Right(actual)
+        else Left(allDiffs)
+    }
+
     private inline def inlineProtocolParams(name: String): ProtocolParams =
         ${ Macros.inlineProtocolParams('name) }
 }

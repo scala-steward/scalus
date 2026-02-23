@@ -45,6 +45,23 @@ case class ProtocolParams(
 
 object ProtocolParams {
 
+    /** A single field difference between two ProtocolParams */
+    case class ParamDiff(field: String, expected: String, actual: String)
+
+    /** Compare two ProtocolParams and return all field-level differences. Returns empty Seq if they
+      * are equal. Uses productElementNames/productIterator for automatic field enumeration.
+      */
+    def diff(expected: ProtocolParams, actual: ProtocolParams): Seq[ParamDiff] = {
+        expected.productElementNames
+            .zip(expected.productIterator)
+            .zip(actual.productIterator)
+            .collect {
+                case ((name, exp), act) if exp != act =>
+                    ParamDiff(name, exp.toString, act.toString)
+            }
+            .toSeq
+    }
+
     /** Extension to parse JSON values that may be either strings or numbers. Some APIs (like
       * Blockfrost) return numeric values as strings, while others (like Yaci DevKit) return them as
       * numbers.
