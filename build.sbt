@@ -783,15 +783,15 @@ addCommandAlias(
 )
 addCommandAlias(
   "precommit",
-  "clean;docs/clean;scalusPluginTests/clean;scalafmtAll;scalafmtSbt;jvm/Test/compile;scalusCardanoLedgerIt/Test/compile;scalusPluginTests/test;jvm/test"
+  "clean;docs/clean;scalafmtAll;scalafmtSbt;jvm/Test/compile;scalusCardanoLedgerIt/Test/compile;jvm/test"
 )
 addCommandAlias(
   "ci",
-  "clean;docs/clean;scalusPluginTests/clean;scalafmtCheckAll;scalafmtSbtCheck;Test/compile;scalusCardanoLedgerIt/Test/compile;scalusPluginTests/Test/compile;Test/nativeLink;test;mima"
+  "clean;docs/clean;scalafmtCheckAll;scalafmtSbtCheck;Test/compile;scalusCardanoLedgerIt/Test/compile;Test/nativeLink;test;mima"
 )
 addCommandAlias(
   "ci-jvm",
-  "clean;docs/clean;scalusPluginTests/clean;scalafmtCheckAll;scalafmtSbtCheck;jvm/Test/compile;scalusCardanoLedgerIt/Test/compile;scalusPluginTests/Test/compile;jvm/test;mima"
+  "clean;docs/clean;scalafmtCheckAll;scalafmtSbtCheck;jvm/Test/compile;scalusCardanoLedgerIt/Test/compile;jvm/test;mima"
 )
 addCommandAlias(
   "ci-js",
