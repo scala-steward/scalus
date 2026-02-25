@@ -4,7 +4,7 @@ import scalus.cardano.ledger.ExUnits
 import scalus.compiler.sir.{SIR, TargetLoweringBackend}
 import scalus.testing.assertions.{MultiResultAssertions, ResultAssertions}
 import scalus.testing.eval.{EvalConfig, Evaluator, MultiEvalResult}
-import scalus.uplc.{Compiled, Constant, Program, Term}
+import scalus.uplc.{CompiledPlutus, Constant, Program, Term}
 import scalus.uplc.eval.{PlutusVM, Result}
 
 /** Fluent builder for evaluation tests.
@@ -98,7 +98,7 @@ class EvalTestBuilder[A](
 /** Subject of evaluation - what we're testing */
 enum EvalSubject[A]:
     case FromSIR(sir: SIR)
-    case FromCompiled[B](compiled: Compiled[B]) extends EvalSubject[B]
+    case FromCompiled[B](compiled: CompiledPlutus[B]) extends EvalSubject[B]
     case FromTerm(term: Term) extends EvalSubject[Term]
     case FromProgram(program: Program) extends EvalSubject[Program]
 
@@ -149,8 +149,8 @@ object EvalTestDsl:
     def eval(sir: SIR): EvalTestBuilder[SIR] =
         new EvalTestBuilder(EvalSubject.FromSIR(sir))
 
-    /** Start testing from a Compiled script */
-    def eval[A](compiled: Compiled[A]): EvalTestBuilder[A] =
+    /** Start testing from a CompiledPlutus script */
+    def eval[A](compiled: CompiledPlutus[A]): EvalTestBuilder[A] =
         new EvalTestBuilder(EvalSubject.FromCompiled(compiled))
 
     /** Start testing from a Term */

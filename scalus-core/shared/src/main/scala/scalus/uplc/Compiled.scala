@@ -12,50 +12,6 @@ import scalus.uplc.transform.*
 
 import scala.annotation.threadUnsafe
 
-/** A compiled Plutus script.
-  *
-  * This trait represents a script that has been compiled from Scala source code through the Scalus
-  * compiler pipeline (Scala -> SIR -> UPLC -> Plutus Script). It contains original Scala code, its
-  * type, [[scalus.compiler.sir.SIR]], compiler options (backend etc), and generated UPLC program
-  * and serialized Plutus script.
-  *
-  * @tparam A
-  *   the Scala type of the compiled code, typically a function type representing the validator
-  *   signature
-  */
-trait Compiled[A] {
-
-    /** The original Scala code that was compiled. Evaluating this executes the Scala version. */
-    def code: A
-
-    /** The Plutus language version (V1, V2, V3, etc.). */
-    def language: Language
-
-    /** The Scalus Intermediate Representation of the compiled code. */
-    def sir: SIR
-
-    /** The compiler options used during compilation. */
-    def options: Options
-
-    /** The compiled UPLC program ready for on-chain execution. */
-    def program: Program
-
-    /** The Plutus script in its serialized form for deployment. */
-    def script: PlutusScript
-
-    /** Derives a Cardano address for this script on the specified network.
-      *
-      * @param network
-      *   the Cardano network (Mainnet or Testnet)
-      * @return
-      *   the script address
-      */
-    def address(network: Network): Address = Address(
-      network,
-      Credential.ScriptHash(script.scriptHash)
-    )
-}
-
 /** Base implementation for compiled Plutus scripts of all versions.
   *
   * This sealed abstract class provides the common implementation for compiling Scala code to Plutus
@@ -78,12 +34,12 @@ sealed abstract class CompiledPlutus[A](
     val sir: SIR,
     val options: Options,
     val optimizer: Optimizer
-) extends Compiled[A] {
+) {
 
     /** Evaluates and returns the original Scala code. */
     def code: A = lazyCode()
 
-    /** The Plutus language version. */
+    /** The Plutus language version (V1, V2, V3, etc.). */
     def language: Language
 
     /** The compiled UPLC program. Lazily computed on first access. */
@@ -91,6 +47,18 @@ sealed abstract class CompiledPlutus[A](
 
     /** The Plutus script in its serialized form. Lazily computed on first access. */
     @threadUnsafe lazy val script: PlutusScript = makeScript(program)
+
+    /** Derives a Cardano address for this script on the specified network.
+      *
+      * @param network
+      *   the Cardano network (Mainnet or Testnet)
+      * @return
+      *   the script address
+      */
+    def address(network: Network): Address = Address(
+      network,
+      Credential.ScriptHash(script.scriptHash)
+    )
 
     /** Creates the program with the appropriate version. */
     protected def makeProgram(term: Term): Program
@@ -494,3 +462,6 @@ object PlutusV3 {
         }
     }
 }
+
+@deprecated("use CompiledPlutus", "0.15.1")
+type Compiled[A] = CompiledPlutus[A]

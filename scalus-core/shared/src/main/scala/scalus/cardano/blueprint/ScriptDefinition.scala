@@ -47,7 +47,7 @@ object Application {
 }
 
 /** A smart contract compiled with Scalus. */
-@deprecated("use Compiled instead", "0.14.2")
+@deprecated("use CompiledPlutus instead", "0.14.2")
 trait CompiledContract {
     def sir: SIR
     def program: Program

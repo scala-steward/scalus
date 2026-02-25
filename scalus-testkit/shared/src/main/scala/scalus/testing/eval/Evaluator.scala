@@ -5,7 +5,7 @@ import scalus.compiler.Options
 import scalus.compiler.sir.{SIR, TargetLoweringBackend}
 import scalus.toUplc
 import scalus.uplc.eval.{PlutusVM, Result}
-import scalus.uplc.{Compiled, DeBruijn, Program, Term, UplcEvalResult}
+import scalus.uplc.{CompiledPlutus, DeBruijn, Program, Term, UplcEvalResult}
 
 /** Configuration for multi-backend evaluation.
   *
@@ -130,9 +130,9 @@ object Evaluator:
         val term = sir.toUplc(generateErrorTraces, backend)
         DeBruijn.deBruijnTerm(term).evaluateDebug
 
-    /** Evaluate a Compiled script.
+    /** Evaluate a CompiledPlutus script.
       *
-      * This evaluates the already-lowered UPLC program from the Compiled instance.
+      * This evaluates the already-lowered UPLC program from the CompiledPlutus instance.
       *
       * @param compiled
       *   The compiled script
@@ -141,7 +141,7 @@ object Evaluator:
       * @return
       *   Result of evaluation
       */
-    def evalCompiled[A](compiled: Compiled[A])(using vm: PlutusVM): Result =
+    def evalCompiled[A](compiled: CompiledPlutus[A])(using vm: PlutusVM): Result =
         vm.evaluateScriptDebug(compiled.program.deBruijnedProgram)
 
     /** Evaluate SIR across multiple backends and VMs.
