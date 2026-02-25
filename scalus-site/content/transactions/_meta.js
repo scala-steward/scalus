@@ -1,5 +1,6 @@
 export default {
   'building-first-transaction': '',
+  'first-contract-transaction': '',
   'payment-methods': '',
   'spending-utxos': '',
   'minting-burning-assets': '',
