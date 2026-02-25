@@ -187,36 +187,18 @@ Learn more about [Debugging Smart Contracts](/docs/testing/debugging).
 
 ## Compiling into Plutus script
 
-Use the `compile` function to transform your Scala validator into a Plutus script:
+Use `PlutusV3.compile` to transform your Scala validator into a Plutus script:
 
 ```scala
-import scalus.compiler.compile
+import scalus.compiler.Options
+import scalus.uplc.PlutusV3
 
-// Compile your validator
-val compiled = compile {
-  def myValidator(datum: Data, redeemer: Data, ctx: Data): Unit = {
-    val context = ctx.to[ScriptContext]
-    require(context.txInfo.signatories.nonEmpty, "No signatories")
-  }
-  myValidator
-}
+// Compile your validator to Plutus V3
+private given Options = Options.release
+val compiled = PlutusV3.compile(HelloCardano.validate)
 
-// Convert to UPLC and encode for Cardano
-val program = compiled.toUplc(generateErrorTraces = true).plutusV3
-val scriptHex = program.doubleCborHex
-```
-
-## Using Validators in Transactions
-
-Once compiled and encoded, use the script hex in your transactions:
-
-```scala
-val compiled = compile(MyValidator)
-val program = compiled.toUplc().plutusV3
-val scriptHex = program.doubleCborHex
-
-// Use scriptHex when building transactions
-// with your transaction builder of choice
+// Get the script hex for use in transactions
+val scriptHex = compiled.script.doubleCborHex
 ```
 
 Learn more about [Compiling Smart Contracts](/docs/smart-contracts/compiling).
@@ -241,5 +223,7 @@ Congratulations! You've successfully created, tested, and debugged your first Ca
 - **[Validators in Depth](/docs/smart-contracts/validators)** - Learn about different validator types and patterns
 - **[Testing Smart Contracts](/docs/testing/unit-testing)** - Advanced testing techniques and property-based testing
 - **[Debugging and Troubleshooting](/docs/testing/debugging)** - Deep dive into debugging strategies
-- **[Compiling Smart Contracts](/docs/smart-contracts/compiling)** - Generate plutus script and use in your transactions
+- **[Compiling Smart Contracts](/docs/smart-contracts/compiling)** - Generate Plutus script and configure compilation options
+- **[Working with Contract](/docs/dapp-development/working-with-contract)** - Set options, generate blueprints, and get script addresses
+- **[Building Transactions](/docs/transactions/building-first-transaction)** - Submit your contract to the blockchain
 - **[Examples Repository](https://github.com/scalus3/scalus/tree/master/scalus-examples)** - Real-world validator examples

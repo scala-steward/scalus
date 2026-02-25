@@ -8,78 +8,92 @@ description: Compile Scala validators to Plutus Core bytecode. Learn about Plutu
 
 ## Basic Compilation
 
-Use the `compile` function to transform your Scala validator into a Plutus script:
+Use `PlutusV3.compile` to transform your Scala validator into a Plutus script:
 
 ```scala
-import scalus.compiler.compile
+import scalus.compiler.Options
+import scalus.uplc.PlutusV3
 
-// Compile your validator
-val compiled = compile {
-  def myValidator(ctx: Data): Unit = {
-    val context = ctx.to[ScriptContext]
-    require(context.txInfo.signatories.nonEmpty, "No signatories")
-  }
-  myValidator
-}
+// Compile your validator to Plutus V3
+val compiled = PlutusV3.compile(MyValidator.validate)
 
-// Convert to UPLC and encode for Cardano
-val program = compiled.toUplc(generateErrorTraces = true).plutusV3
-val script = program.doubleCborHex
+// Get the script for use in transactions
+val script = compiled.script
+val scriptHex = compiled.script.doubleCborHex
 ```
 
-The compilation flow: `compile` → `toUplc()` → select version → encode.
+The compilation flow: `PlutusV3.compile` takes a validator entry point and produces a `PlutusV3[A]` object containing the script, its hash, and address.
 
 ## Choosing a Plutus Version
 
 Select the appropriate version for your use case:
 
 ```scala
+import scalus.uplc.{PlutusV1, PlutusV2, PlutusV3}
+
 // Plutus V3 (recommended for new validators)
-val programV3 = compiled.toUplc().plutusV3
+val compiledV3 = PlutusV3.compile(MyValidator.validate)
 
 // Plutus V2 (for reference inputs, inline datums)
-val programV2 = compiled.toUplc().plutusV2
+val compiledV2 = PlutusV2.compile(MyValidator.validate)
 
 // Plutus V1 (legacy)
-val programV1 = compiled.toUplc().plutusV1
+val compiledV1 = PlutusV1.compile(MyValidator.validate)
 ```
 
-## Error Traces
+## Compilation Options
 
-The `generateErrorTraces` flag controls debugging information:
+Control error traces and optimizations via `Options`:
 
 ```scala
+import scalus.compiler.Options
+
 // Development: Include error traces for debugging
-compiled.toUplc(generateErrorTraces = true)
+given Options = Options.debug
 
 // Production: Minimal script size
-compiled.toUplc(generateErrorTraces = false)
+given Options = Options.release
 ```
 
-- `true`: Adds error location information (easier debugging, larger script)
-- `false`: Minimal script size (for production)
+- `Options.debug`: Adds error location information (easier debugging, larger script)
+- `Options.release`: Minimal script size (for production)
+
+You can also enable error traces on a compiled validator:
+
+```scala
+val compiled = PlutusV3.compile(MyValidator.validate)
+
+// Add error traces for debugging
+val withTraces = compiled.withErrorTraces
+```
 
 ## Complete Example
 
 ```scala
 import scalus.*
-import scalus.builtin.ByteString.*
+import scalus.builtin.Data
+import scalus.compiler.Options
 import scalus.ledger.api.v3.*
+import scalus.uplc.PlutusV3
 
-// Define and compile validator
-val compiled = compile {
-    def validator(datum: Data, redeemer: Data, ctxData: Data) = {
-        val ctx = ctxData.to[ScriptContext]
-        ctx.txInfo.signatories.find { _.hash == hex"deadbeef" }
+@Compile
+object MyValidator {
+    inline def validate(scData: Data): Unit = {
+        val ctx = scData.to[ScriptContext]
+        ctx.scriptInfo match
+            case ScriptInfo.SpendingScript(_, datum) =>
+                require(ctx.txInfo.signatories.nonEmpty, "No signatories")
+            case _ => fail("Must be spending")
     }
-    validator
 }
 
-// Convert to Plutus V2 script
-val program = compiled.toUplc(generateErrorTraces = true).plutusV2
+object MyContract {
+    private given Options = Options.release
+    lazy val compiled = PlutusV3.compile(MyValidator.validate)
+}
 
 // Get hex for use in transactions
-val scriptHex = program.doubleCborHex
+val scriptHex = MyContract.compiled.script.doubleCborHex
 ```
 
 ## Encoding Options
@@ -87,28 +101,25 @@ val scriptHex = program.doubleCborHex
 UPLC programs can be encoded in several formats:
 
 ```scala
+val script = compiled.script
+
 // Flat encoding (binary format)
-val flatEncoded = program.flatEncoded
+val flatEncoded = script.flatEncoded
 
 // CBOR encoding (wraps Flat)
-val cborEncoded = program.cborEncoded
+val cborEncoded = script.cborEncoded
 
 // Double CBOR encoding (standard for Cardano transactions)
-val doubleCborEncoded = program.doubleCborEncoded
+val doubleCborEncoded = script.doubleCborEncoded
 
 // Hex string of double CBOR (most commonly used in APIs)
-val hexString = program.doubleCborHex
+val hexString = script.doubleCborHex
 ```
 
-## Using Validators in Transactions
+## What's Next?
 
-Once compiled and encoded, use the script hex in your transactions:
+Once your validator compiles, you're ready to use it in a DApp:
 
-```scala
-val compiled = compile(MyValidator)
-val program = compiled.toUplc().plutusV3
-val scriptHex = program.doubleCborHex
-
-// Use scriptHex when building transactions
-// with your transaction builder of choice
-```
+- **[Working with Contract](/docs/dapp-development/working-with-contract)** — Set compilation options, generate CIP-57 blueprints, and get script addresses
+- **[Building Transactions](/docs/transactions/building-first-transaction)** — Submit your compiled validator to the blockchain using TxBuilder
+- **[HTLC Tutorial](/docs/smart-contracts/htlc-tutorial)** — End-to-end example: contract, transactions, testing, and deployment
