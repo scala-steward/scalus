@@ -4,12 +4,17 @@ import org.scalatest.funsuite.AnyFunSuite
 import scalus.cardano.onchain.RequirementError
 import scalus.cardano.onchain.plutus.prelude.{identity, Eq, List, Option, Ord, SortedMap, These}
 import scalus.uplc.builtin.Data.{fromData, toData, FromData}
+import scalus.cardano.ledger.ExUnits
 import scalus.testing.kit.EvalTestKit
 
 class SortedMapTest extends AnyFunSuite with EvalTestKit {
 
     test("empty") {
-        assertEvalEq(SortedMap.empty[BigInt, BigInt].toList, List.empty[(BigInt, BigInt)])
+        assertEvalWithBudget(
+          SortedMap.empty[BigInt, BigInt].toList,
+          List.empty[(BigInt, BigInt)],
+          ExUnits(8028, 1606957)
+        )
     }
 
     test("singleton") {
@@ -17,9 +22,10 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
             SortedMap.singleton(key, value).toList === List.single((key, value))
         }
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap.singleton(BigInt(1), BigInt(1)).toList,
-          List.single((BigInt(1), BigInt(1)))
+          List.single((BigInt(1), BigInt(1))),
+          ExUnits(20824, 5715562)
         )
     }
 
@@ -30,7 +36,7 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
             SortedMap.unsafeFromList(strictlyAscendingList).toList === strictlyAscendingList
         }
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap
               .unsafeFromList(
                 List.Cons(
@@ -42,7 +48,8 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
           List.Cons(
             (BigInt(1), BigInt(1)),
             List.Cons((BigInt(2), BigInt(2)), List.Cons((BigInt(3), BigInt(3)), List.Nil))
-          )
+          ),
+          ExUnits(29520, 9202163)
         )
     }
 
@@ -53,7 +60,7 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
             SortedMap.fromList(list).toList === strictlyAscendingList
         }
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap
               .fromList(
                 List.Cons(
@@ -62,7 +69,8 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
                 )
               )
               .toList,
-          List.Cons((BigInt(1), BigInt(1)), List.Cons((BigInt(2), BigInt(2)), List.Nil))
+          List.Cons((BigInt(1), BigInt(1)), List.Cons((BigInt(2), BigInt(2)), List.Nil)),
+          ExUnits(164136, 48917761)
         )
     }
 
@@ -87,7 +95,7 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
             )
         }
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap
               .fromStrictlyAscendingList(
                 List.Cons(
@@ -99,7 +107,8 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
           List.Cons(
             (BigInt(1), BigInt(1)),
             List.Cons((BigInt(2), BigInt(2)), List.Cons((BigInt(3), BigInt(3)), List.Nil))
-          )
+          ),
+          ExUnits(91385, 28235892)
         )
 
         assertEvalFails[RequirementError](
@@ -149,7 +158,7 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
             result === expected
         }
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap
               .union(
                 SortedMap
@@ -173,10 +182,11 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
                     List.Cons((BigInt(3), These.This(BigInt(3))), List.Nil)
                   )
                 )
-              )
+              ),
+          ExUnits(181693, 55410570)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap
               .union(
                 SortedMap.empty[BigInt, BigInt],
@@ -200,10 +210,11 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
                     List.Cons((BigInt(3), These.That(BigInt(3))), List.Nil)
                   )
                 )
-              )
+              ),
+          ExUnits(181361, 55229576)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap
               .union(
                 SortedMap
@@ -236,7 +247,8 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
                     List.Cons((BigInt(3), These.That(BigInt(3))), List.Nil)
                   )
                 )
-              )
+              ),
+          ExUnits(260978, 82490165)
         )
     }
 
@@ -274,7 +286,7 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
             result === expected
         }
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap
               .unionMap(
                 SortedMap
@@ -299,10 +311,11 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
                     List.Cons((BigInt(3), These.This(BigInt(3))), List.Nil)
                   )
                 )
-              )
+              ),
+          ExUnits(182993, 55618570)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap
               .unionMap(
                 SortedMap.empty[BigInt, BigInt],
@@ -327,10 +340,11 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
                     List.Cons((BigInt(3), These.That(BigInt(3))), List.Nil)
                   )
                 )
-              )
+              ),
+          ExUnits(182661, 55437576)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap
               .unionMap(
                 SortedMap
@@ -364,7 +378,8 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
                     List.Cons((BigInt(3), These.That(BigInt(3))), List.Nil)
                   )
                 )
-              )
+              ),
+          ExUnits(262878, 82794165)
         )
     }
 
@@ -378,17 +393,19 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
             result === expected
         }
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap.empty[BigInt, BigInt],
-          SortedMap.empty[BigInt, BigInt]
+          SortedMap.empty[BigInt, BigInt],
+          ExUnits(5464, 1049340)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap.singleton(BigInt(1), BigInt(1)),
-          SortedMap.singleton(BigInt(1), BigInt(1))
+          SortedMap.singleton(BigInt(1), BigInt(1)),
+          ExUnits(13440, 3533864)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap
               .fromStrictlyAscendingList(
                 List.Cons(
@@ -408,7 +425,8 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
                     List.Nil
                   )
                 )
-              )
+              ),
+          ExUnits(51189, 15203727)
         )
 
         assertEvalNotEq(
@@ -545,17 +563,19 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
             map === fromDataMap
         }
 
-        assertEvalEq(
+        assertEvalWithBudget(
           fromData[SortedMap[BigInt, BigInt]](SortedMap.empty[BigInt, BigInt].toData),
-          SortedMap.empty[BigInt, BigInt]
+          SortedMap.empty[BigInt, BigInt],
+          ExUnits(8564, 1545340)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           fromData[SortedMap[BigInt, BigInt]](SortedMap.singleton(BigInt(1), BigInt(1)).toData),
-          SortedMap.singleton(BigInt(1), BigInt(1))
+          SortedMap.singleton(BigInt(1), BigInt(1)),
+          ExUnits(16540, 4029864)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           fromData[SortedMap[BigInt, BigInt]](
             SortedMap
                 .fromStrictlyAscendingList(
@@ -578,7 +598,8 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
                     List.Cons((BigInt(3), BigInt(3)), List.Nil)
                   )
                 )
-              )
+              ),
+          ExUnits(77461, 23302032)
         )
 
     }
@@ -671,11 +692,19 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
             result === expected
         }
 
-        assertEvalEq(SortedMap.empty[BigInt, BigInt].length, BigInt(0))
+        assertEvalWithBudget(
+          SortedMap.empty[BigInt, BigInt].length,
+          BigInt(0),
+          ExUnits(12492, 2464695)
+        )
 
-        assertEvalEq(SortedMap.singleton(BigInt(1), BigInt(1)).length, BigInt(1))
+        assertEvalWithBudget(
+          SortedMap.singleton(BigInt(1), BigInt(1)).length,
+          BigInt(1),
+          ExUnits(32350, 8112358)
+        )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap
               .fromStrictlyAscendingList(
                 List.Cons(
@@ -684,7 +713,8 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
                 )
               )
               .length,
-          BigInt(3)
+          BigInt(3),
+          ExUnits(117035, 33710804)
         )
     }
 
@@ -696,11 +726,19 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
             result === expected
         }
 
-        assertEvalEq(SortedMap.empty[BigInt, BigInt].size, BigInt(0))
+        assertEvalWithBudget(
+          SortedMap.empty[BigInt, BigInt].size,
+          BigInt(0),
+          ExUnits(12492, 2464695)
+        )
 
-        assertEvalEq(SortedMap.singleton(BigInt(1), BigInt(1)).size, BigInt(1))
+        assertEvalWithBudget(
+          SortedMap.singleton(BigInt(1), BigInt(1)).size,
+          BigInt(1),
+          ExUnits(32350, 8112358)
+        )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap
               .fromStrictlyAscendingList(
                 List.Cons(
@@ -709,7 +747,8 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
                 )
               )
               .size,
-          BigInt(3)
+          BigInt(3),
+          ExUnits(117035, 33710804)
         )
     }
 
@@ -721,17 +760,19 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
             result === expected
         }
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap.empty[BigInt, BigInt].keys,
-          List.Nil
+          List.Nil,
+          ExUnits(10792, 2098742)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap.singleton(BigInt(1), "1").keys,
-          List.single(BigInt(1))
+          List.single(BigInt(1)),
+          ExUnits(29878, 7953139)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap
               .fromStrictlyAscendingList(
                 List.Cons(
@@ -740,7 +781,8 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
                 )
               )
               .keys,
-          List.Cons(BigInt(1), List.Cons(BigInt(2), List.Cons(BigInt(3), List.Nil)))
+          List.Cons(BigInt(1), List.Cons(BigInt(2), List.Cons(BigInt(3), List.Nil))),
+          ExUnits(112401, 33749638)
         )
     }
 
@@ -752,17 +794,19 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
             result === expected
         }
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap.empty[BigInt, BigInt].values,
-          List.Nil
+          List.Nil,
+          ExUnits(10792, 2098742)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap.singleton(BigInt(1), "1").values,
-          List.single("1")
+          List.single("1"),
+          ExUnits(30110, 8066802)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap
               .fromStrictlyAscendingList(
                 List.Cons(
@@ -771,7 +815,8 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
                 )
               )
               .values,
-          List.Cons("1", List.Cons("2", List.Cons("3", List.Nil)))
+          List.Cons("1", List.Cons("2", List.Cons("3", List.Nil))),
+          ExUnits(113097, 34090627)
         )
     }
 
@@ -873,17 +918,19 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
             result === expected
         }
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap.empty[BigInt, BigInt].mapValues(_ + 1),
-          SortedMap.empty[BigInt, BigInt]
+          SortedMap.empty[BigInt, BigInt],
+          ExUnits(10060, 1995203)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap.singleton(BigInt(1), BigInt(1)).mapValues(_ + 1),
-          SortedMap.fromStrictlyAscendingList(List.single((BigInt(1), BigInt(2))))
+          SortedMap.fromStrictlyAscendingList(List.single((BigInt(1), BigInt(2)))),
+          ExUnits(28780, 7857129)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap
               .fromStrictlyAscendingList(
                 List.Cons(
@@ -897,7 +944,8 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
               (BigInt(1), BigInt(2)),
               List.Cons((BigInt(2), BigInt(3)), List.Cons((BigInt(3), BigInt(4)), List.Nil))
             )
-          )
+          ),
+          ExUnits(110889, 33836101)
         )
     }
 
@@ -910,17 +958,19 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
             result === expected
         }
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap.empty[BigInt, BigInt].filter(_ => true),
-          SortedMap.empty[BigInt, BigInt]
+          SortedMap.empty[BigInt, BigInt],
+          ExUnits(10360, 2043203)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap.singleton(BigInt(1), BigInt(1)).filter(_._1 > 0),
-          SortedMap.singleton(BigInt(1), BigInt(1))
+          SortedMap.singleton(BigInt(1), BigInt(1)),
+          ExUnits(25722, 6838040)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap
               .fromStrictlyAscendingList(
                 List.Cons(
@@ -929,10 +979,11 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
                 )
               )
               .filter(_._1 > 2),
-          SortedMap.fromStrictlyAscendingList(List.Cons((BigInt(3), BigInt(3)), List.Nil))
+          SortedMap.fromStrictlyAscendingList(List.Cons((BigInt(3), BigInt(3)), List.Nil)),
+          ExUnits(99487, 30131810)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap
               .fromStrictlyAscendingList(
                 List.Cons(
@@ -941,7 +992,8 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
                 )
               )
               .filter(_._1 < 0),
-          SortedMap.empty[BigInt, BigInt]
+          SortedMap.empty[BigInt, BigInt],
+          ExUnits(98823, 29880298)
         )
     }
 
@@ -954,17 +1006,19 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
             result === expected
         }
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap.empty[BigInt, BigInt].filterNot(_ => true),
-          SortedMap.empty[BigInt, BigInt]
+          SortedMap.empty[BigInt, BigInt],
+          ExUnits(11560, 2235203)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap.singleton(BigInt(1), BigInt(1)).filterNot(_._1 > 0),
-          SortedMap.empty[BigInt, BigInt]
+          SortedMap.empty[BigInt, BigInt],
+          ExUnits(27059, 6982577)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap
               .fromStrictlyAscendingList(
                 List.Cons(
@@ -975,10 +1029,11 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
               .filterNot(_._1 > 2),
           SortedMap.fromStrictlyAscendingList(
             List.Cons((BigInt(1), BigInt(1)), List.Cons((BigInt(2), BigInt(2)), List.Nil))
-          )
+          ),
+          ExUnits(103754, 31187469)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap
               .fromStrictlyAscendingList(
                 List.Cons(
@@ -992,7 +1047,8 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
               (BigInt(1), BigInt(1)),
               List.Cons((BigInt(2), BigInt(2)), List.Cons((BigInt(3), BigInt(3)), List.Nil))
             )
-          )
+          ),
+          ExUnits(104418, 31438981)
         )
     }
 
@@ -1004,22 +1060,25 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
             result === expected
         }
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap.empty[BigInt, BigInt].find(_._1 === BigInt(1)),
-          Option.None
+          Option.None,
+          ExUnits(10560, 2029108)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap.singleton(BigInt(1), BigInt(1)).find(_._1 === BigInt(1)),
-          Option.Some((BigInt(1), BigInt(1)))
+          Option.Some((BigInt(1), BigInt(1))),
+          ExUnits(24850, 6958243)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap.singleton(BigInt(1), BigInt(1)).find(_._1 === BigInt(0)),
-          Option.None
+          Option.None,
+          ExUnits(25258, 6579476)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap
               .fromStrictlyAscendingList(
                 List.Cons(
@@ -1028,10 +1087,11 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
                 )
               )
               .find(_._1 === BigInt(2)),
-          Option.Some((BigInt(2), BigInt(2)))
+          Option.Some((BigInt(2), BigInt(2))),
+          ExUnits(91893, 28200255)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap
               .fromStrictlyAscendingList(
                 List.Cons(
@@ -1040,7 +1100,8 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
                 )
               )
               .find(_._1 === BigInt(4)),
-          Option.None
+          Option.None,
+          ExUnits(99023, 29887332)
         )
     }
 
@@ -1056,26 +1117,29 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
             result === expected
         }
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap.empty[BigInt, BigInt].findMap { case (k, v) => Option.Some(v) },
-          Option.None
+          Option.None,
+          ExUnits(13092, 2562102)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap.singleton(BigInt(1), BigInt(1)).findMap { case (k, v) =>
               if k === BigInt(1) then Option.Some(v) else Option.None
           },
-          Option.Some(BigInt(1))
+          Option.Some(BigInt(1)),
+          ExUnits(32814, 8892851)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap.singleton(BigInt(1), BigInt(1)).findMap { case (k, v) =>
               if k === BigInt(0) then Option.Some(v) else Option.None
           },
-          Option.None
+          Option.None,
+          ExUnits(35414, 9308484)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap
               .fromStrictlyAscendingList(
                 List.Cons(
@@ -1084,10 +1148,11 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
                 )
               )
               .findMap { case (k, v) => if k === BigInt(2) then Option.Some(v) else Option.None },
-          Option.Some(BigInt(2))
+          Option.Some(BigInt(2)),
+          ExUnits(112301, 33954958)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap
               .fromStrictlyAscendingList(
                 List.Cons(
@@ -1096,7 +1161,8 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
                 )
               )
               .findMap { case (k, v) => if k === BigInt(4) then Option.Some(v) else Option.None },
-          Option.None
+          Option.None,
+          ExUnits(124427, 37008368)
         )
     }
 
@@ -1108,19 +1174,21 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
             result === expected
         }
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap.empty[BigInt, BigInt].foldLeft(BigInt(0)) { case (acc, (k, v)) => acc + k + v },
-          BigInt(0)
+          BigInt(0),
+          ExUnits(10760, 2059701)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap.singleton(BigInt(1), BigInt(1)).foldLeft(BigInt(0)) { case (acc, (k, v)) =>
               acc + k + v
           },
-          BigInt(2)
+          BigInt(2),
+          ExUnits(36396, 9653727)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap
               .fromStrictlyAscendingList(
                 List.Cons(
@@ -1129,7 +1197,8 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
                 )
               )
               .foldLeft(BigInt(0)) { case (acc, (k, v)) => acc + k + v },
-          BigInt(12)
+          BigInt(12),
+          ExUnits(132337, 39096899)
         )
     }
 
@@ -1141,21 +1210,23 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
             result === expected
         }
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap.empty[BigInt, BigInt].foldRight(BigInt(0)) { case ((k, v), acc) =>
               acc + k + v
           },
-          BigInt(0)
+          BigInt(0),
+          ExUnits(10760, 2059701)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap.singleton(BigInt(1), BigInt(1)).foldRight(BigInt(0)) { case ((k, v), acc) =>
               acc + k + v
           },
-          BigInt(2)
+          BigInt(2),
+          ExUnits(32336, 8691187)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap
               .fromStrictlyAscendingList(
                 List.Cons(
@@ -1164,7 +1235,8 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
                 )
               )
               .foldRight(BigInt(0)) { case ((k, v), acc) => acc + k + v },
-          BigInt(12)
+          BigInt(12),
+          ExUnits(120157, 36209279)
         )
     }
 
@@ -1178,22 +1250,25 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
             result === expected
         }
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap.empty[BigInt, BigInt].get(BigInt(1)),
-          Option.None
+          Option.None,
+          ExUnits(13524, 2641401)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap.singleton(BigInt(1), BigInt(1)).get(BigInt(1)),
-          Option.Some(BigInt(1))
+          Option.Some(BigInt(1)),
+          ExUnits(36940, 10057250)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap.singleton(BigInt(1), BigInt(1)).get(BigInt(0)),
-          Option.None
+          Option.None,
+          ExUnits(33608, 8916459)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap
               .fromStrictlyAscendingList(
                 List.Cons(
@@ -1202,10 +1277,11 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
                 )
               )
               .get(BigInt(2)),
-          Option.Some(BigInt(2))
+          Option.Some(BigInt(2)),
+          ExUnits(118689, 35958306)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap
               .fromStrictlyAscendingList(
                 List.Cons(
@@ -1214,7 +1290,8 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
                 )
               )
               .get(BigInt(4)),
-          Option.None
+          Option.None,
+          ExUnits(131845, 39636514)
         )
     }
 
@@ -1233,16 +1310,17 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
           SortedMap.empty[BigInt, BigInt].getOrFail(BigInt(1))
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap.singleton(BigInt(1), BigInt(1)).getOrFail(BigInt(1)),
-          BigInt(1)
+          BigInt(1),
+          ExUnits(40402, 11126001)
         )
 
         assertEvalFails[NoSuchElementException](
           SortedMap.singleton(BigInt(1), BigInt(1)).getOrFail(BigInt(0))
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap
               .fromStrictlyAscendingList(
                 List.Cons(
@@ -1251,7 +1329,8 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
                 )
               )
               .getOrFail(BigInt(2)),
-          BigInt(2)
+          BigInt(2),
+          ExUnits(121951, 36995057)
         )
 
         assertEvalFails[NoSuchElementException](
@@ -1281,16 +1360,17 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
           SortedMap.empty[BigInt, BigInt].at(BigInt(1))
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap.singleton(BigInt(1), BigInt(1)).at(BigInt(1)),
-          BigInt(1)
+          BigInt(1),
+          ExUnits(41202, 11254001)
         )
 
         assertEvalFails[NoSuchElementException](
           SortedMap.singleton(BigInt(1), BigInt(1)).at(BigInt(0))
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap
               .fromStrictlyAscendingList(
                 List.Cons(
@@ -1299,7 +1379,8 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
                 )
               )
               .at(BigInt(2)),
-          BigInt(2)
+          BigInt(2),
+          ExUnits(122651, 37107057)
         )
 
         assertEvalFails[NoSuchElementException](
@@ -1370,20 +1451,22 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
             map.insert(key, value).get(key) === Option.Some(value)
         }
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap.empty[BigInt, BigInt].insert(BigInt(1), BigInt(1)),
-          SortedMap.singleton(BigInt(1), BigInt(1))
+          SortedMap.singleton(BigInt(1), BigInt(1)),
+          ExUnits(34732, 9505071)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap.singleton(BigInt(1), BigInt(1)).insert(BigInt(2), BigInt(2)),
           SortedMap
               .fromStrictlyAscendingList(
                 List.Cons((BigInt(1), BigInt(1)), List.Cons((BigInt(2), BigInt(2)), List.Nil))
-              )
+              ),
+          ExUnits(82612, 25044399)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap
               .fromStrictlyAscendingList(
                 List.Cons((BigInt(1), BigInt(1)), List.Cons((BigInt(3), BigInt(3)), List.Nil))
@@ -1395,7 +1478,8 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
                   (BigInt(1), BigInt(1)),
                   List.Cons((BigInt(2), BigInt(2)), List.Cons((BigInt(3), BigInt(3)), List.Nil))
                 )
-              )
+              ),
+          ExUnits(152801, 47779016)
         )
     }
 
@@ -1412,31 +1496,35 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
             newMap.contains(key) && !newMap.delete(key).contains(key)
         }
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap.empty[BigInt, BigInt].delete(BigInt(1)),
-          SortedMap.empty[BigInt, BigInt]
+          SortedMap.empty[BigInt, BigInt],
+          ExUnits(13392, 2603250)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap.singleton(BigInt(1), BigInt(1)).delete(BigInt(1)),
-          SortedMap.empty[BigInt, BigInt]
+          SortedMap.empty[BigInt, BigInt],
+          ExUnits(37408, 10160827)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap.singleton(BigInt(1), BigInt(1)).delete(BigInt(2)),
-          SortedMap.singleton(BigInt(1), BigInt(1))
+          SortedMap.singleton(BigInt(1), BigInt(1)),
+          ExUnits(42928, 11708178)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap
               .fromStrictlyAscendingList(
                 List.Cons((BigInt(1), BigInt(1)), List.Cons((BigInt(2), BigInt(2)), List.Nil))
               )
               .delete(BigInt(2)),
-          SortedMap.singleton(BigInt(1), BigInt(1))
+          SortedMap.singleton(BigInt(1), BigInt(1)),
+          ExUnits(104153, 31473163)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           SortedMap
               .fromStrictlyAscendingList(
                 List.Cons((BigInt(1), BigInt(1)), List.Cons((BigInt(2), BigInt(2)), List.Nil))
@@ -1445,7 +1533,8 @@ class SortedMapTest extends AnyFunSuite with EvalTestKit {
           SortedMap
               .fromStrictlyAscendingList(
                 List.Cons((BigInt(1), BigInt(1)), List.Cons((BigInt(2), BigInt(2)), List.Nil))
-              )
+              ),
+          ExUnits(109673, 33020514)
         )
     }
 
