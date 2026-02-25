@@ -40,14 +40,14 @@ class KnightsTest extends AnyFunSuite, ScalusTest:
         val options = summon[Options]
         val scalusBudget =
             if options.targetProtocolVersion >= MajorProtocolVersion.vanRossemPV then
-                ExUnits(memory = 229_244333L, steps = 59313_036614L)
+                ExUnits(memory = 229_319217, steps = 59332_070134L)
             else if options.targetLoweringBackend == TargetLoweringBackend.SirToUplcV3Lowering
-            then ExUnits(memory = 324_452274L, steps = 92346_941030L)
+            then ExUnits(memory = 324_452274, steps = 92346_941030L)
             else if options.targetLoweringBackend == TargetLoweringBackend.SumOfProductsLowering
-            then ExUnits(memory = 247_807177L, steps = 44783_358238L)
+            then ExUnits(memory = 247_807177, steps = 44783_358238L)
             else {
                 // actually we don't know, need recheck
-                ExUnits(memory = 247_807177L, steps = 44783_358238L)
+                ExUnits(memory = 247_807177, steps = 44783_358238L)
             }
 
         assert(result.isSuccess)
@@ -56,7 +56,7 @@ class KnightsTest extends AnyFunSuite, ScalusTest:
         compareBudgetWithReferenceValue(
           testName = "KnightsTest.100_4x4",
           scalusBudget = scalusBudget,
-          refBudget = ExUnits(memory = 160_204421L, steps = 54958_831939L),
+          refBudget = ExUnits(memory = 160_204421, steps = 54958_831939L),
           isPrintComparison = printComparison
         )
     }
@@ -140,13 +140,13 @@ class KnightsTest extends AnyFunSuite, ScalusTest:
         val options = summon[Options]
         val scalusBudget =
             if options.targetProtocolVersion >= MajorProtocolVersion.vanRossemPV then
-                ExUnits(memory = 611_419070L, steps = 151964_569078L)
+                ExUnits(memory = 611_586434, steps = 152007_214498L)
             else
                 options.targetLoweringBackend match
                     case TargetLoweringBackend.SirToUplcV3Lowering =>
-                        ExUnits(memory = 822_015659L, steps = 228266_926079L)
+                        ExUnits(memory = 822_015659, steps = 228266_926079L)
                     case TargetLoweringBackend.SumOfProductsLowering =>
-                        ExUnits(memory = 645_799142L, steps = 115775_218834L)
+                        ExUnits(memory = 645_799142, steps = 115775_218834L)
                     case _ =>
                         throw new IllegalStateException("Unsupported target lowering backend")
         if !result.isSuccess then println(s"Result:  $result")
@@ -156,7 +156,7 @@ class KnightsTest extends AnyFunSuite, ScalusTest:
         compareBudgetWithReferenceValue(
           testName = "KnightsTest.100_6x6",
           scalusBudget = scalusBudget,
-          refBudget = ExUnits(memory = 292_216349L, steps = 131954_064320L),
+          refBudget = ExUnits(memory = 292_216349, steps = 131954_064320L),
           isPrintComparison = printComparison
         )
     }
@@ -242,15 +242,15 @@ class KnightsTest extends AnyFunSuite, ScalusTest:
         val options = summon[Options]
         val scalusBudget =
             if options.targetProtocolVersion >= MajorProtocolVersion.vanRossemPV then
-                ExUnits(memory = 1233_662109L, steps = 302928_599877L)
+                ExUnits(memory = 1233_957745, steps = 303004_109957L)
             else
                 options.targetLoweringBackend match {
                     case TargetLoweringBackend.SirToUplcV3Lowering =>
-                        ExUnits(memory = 1645_356753L, steps = 452914_801705L)
+                        ExUnits(memory = 1645_356753, steps = 452914_801705L)
                     case TargetLoweringBackend.SumOfProductsLowering =>
-                        ExUnits(memory = 1315_097779L, steps = 235822_700067L)
+                        ExUnits(memory = 1315_097779, steps = 235822_700067L)
                     case TargetLoweringBackend.ScottEncodingLowering =>
-                        ExUnits(memory = 1315_097779L, steps = 235822_700067L)
+                        ExUnits(memory = 1315_097779, steps = 235822_700067L)
                 }
         assert(result.isSuccess)
         assert(result.budget == scalusBudget)
@@ -258,7 +258,7 @@ class KnightsTest extends AnyFunSuite, ScalusTest:
         compareBudgetWithReferenceValue(
           testName = "KnightsTest.100_8x8",
           scalusBudget = scalusBudget,
-          refBudget = ExUnits(memory = 540_217437L, steps = 270266_226527L),
+          refBudget = ExUnits(memory = 540_217437, steps = 270266_226527L),
         )
     }
 

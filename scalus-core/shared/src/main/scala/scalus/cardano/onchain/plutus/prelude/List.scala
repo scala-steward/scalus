@@ -28,7 +28,7 @@ object List {
     inline def empty[A]: List[A] = List.Nil
 
     /** Creates a list with a single element */
-    def single[A](a: A): List[A] = Cons(a, List.Nil)
+    inline def single[A](a: A): List[A] = Cons(a, List.Nil)
 
     /** Creates a list from a variable number of arguments.
       *

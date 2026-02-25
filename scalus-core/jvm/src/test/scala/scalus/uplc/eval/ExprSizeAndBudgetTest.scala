@@ -67,17 +67,17 @@ class ExprSizeAndBudgetTest extends AnyFunSuite {
     }
 
     test(
-      "scalus.cardano.onchain.plutus.prelude.List.cons(true, scalus.cardano.onchain.plutus.prelude.List.Nil) size is 123"
+      "scalus.cardano.onchain.plutus.prelude.List.cons(true, scalus.cardano.onchain.plutus.prelude.List.Nil) size is 83"
     ) {
         val uplc =
             compile(scalus.cardano.onchain.plutus.prelude.List.single(true)).toUplcOptimized()
-        assert(encoder.bitSize(uplc) == 123)
+        assert(encoder.bitSize(uplc) == 83)
     }
 
-    test("scalus.cardano.onchain.plutus.prelude.List.single(true) size is 123") {
+    test("scalus.cardano.onchain.plutus.prelude.List.single(true) size is 83") {
         val uplc =
             compile(scalus.cardano.onchain.plutus.prelude.List.single(true)).toUplcOptimized()
-        assert(encoder.bitSize(uplc) == 123)
+        assert(encoder.bitSize(uplc) == 83)
     }
 
     test("Recursion cost") {

@@ -44,14 +44,14 @@ class ClausifyTest extends AnyFunSuite, ScalusTest:
         val options = summon[Options]
         val scalusBudget =
             if options.targetProtocolVersion >= MajorProtocolVersion.vanRossemPV then
-                ExUnits(memory = 38414376L, steps = 10585218745L)
+                ExUnits(memory = 38_332476, steps = 10572_114745L)
             else if options.targetLoweringBackend == TargetLoweringBackend.SirToUplcV3Lowering
-            then ExUnits(memory = 75014277L, steps = 22595514040L)
+            then ExUnits(memory = 75_014277, steps = 22595_514040L)
             else if options.targetLoweringBackend == TargetLoweringBackend.SumOfProductsLowering
-            then ExUnits(memory = 45835971L, steps = 7879192811L)
+            then ExUnits(memory = 45_835971, steps = 7879_192811L)
             else {
                 // not tested
-                ExUnits(memory = 100000L, steps = 1000000000L)
+                ExUnits(memory = 100000, steps = 1000_000000)
             }
         assert(result.isSuccess)
         assert(result.budget == scalusBudget)
@@ -59,7 +59,7 @@ class ClausifyTest extends AnyFunSuite, ScalusTest:
         compareBudgetWithReferenceValue(
           testName = "ClausifyTest.F1",
           scalusBudget = scalusBudget,
-          refBudget = ExUnits(memory = 39891097L, steps = 12325496028L),
+          refBudget = ExUnits(memory = 39_891097, steps = 12325_496028L),
           isPrintComparison = true
         )
     }
@@ -77,16 +77,16 @@ class ClausifyTest extends AnyFunSuite, ScalusTest:
         val options = summon[Options]
         val scalusBudget =
             if options.targetProtocolVersion >= MajorProtocolVersion.vanRossemPV then
-                ExUnits(memory = 47984596L, steps = 13164068261L)
+                ExUnits(memory = 47_876296, steps = 13146_740261L)
             else
                 options.targetLoweringBackend match {
                     case TargetLoweringBackend.SirToUplcV3Lowering =>
-                        ExUnits(memory = 93117893L, steps = 27997423766L)
+                        ExUnits(memory = 93_117893, steps = 27997_423766L)
                     case TargetLoweringBackend.SumOfProductsLowering =>
-                        ExUnits(memory = 57029883L, steps = 9813458115L)
+                        ExUnits(memory = 57_029883, steps = 9813_458115L)
                     case TargetLoweringBackend.ScottEncodingLowering =>
                         // not tested
-                        ExUnits(memory = 100000L, steps = 1000000000L)
+                        ExUnits(memory = 100000, steps = 1000_000000)
                 }
 
         assert(result.isSuccess)
@@ -95,7 +95,7 @@ class ClausifyTest extends AnyFunSuite, ScalusTest:
         compareBudgetWithReferenceValue(
           testName = "ClausifyTest.F2",
           scalusBudget = scalusBudget,
-          refBudget = ExUnits(memory = 50524767L, steps = 15570882882L),
+          refBudget = ExUnits(memory = 50_524767, steps = 15570_882882L),
           isPrintComparison = true
         )
     }
@@ -113,17 +113,17 @@ class ClausifyTest extends AnyFunSuite, ScalusTest:
         val options = summon[Options]
         val scalusBudget =
             if options.targetProtocolVersion >= MajorProtocolVersion.vanRossemPV then
-                ExUnits(memory = 127400838L, steps = 34890849819L)
+                ExUnits(memory = 127_132694, steps = 34848_397713L)
             else if options.targetLoweringBackend == TargetLoweringBackend.SirToUplcV3Lowering
-            then ExUnits(memory = 248968345L, steps = 74900219564L)
-            else ExUnits(memory = 152347441L, steps = 26254484239L)
+            then ExUnits(memory = 248_968345, steps = 74900_219564L)
+            else ExUnits(memory = 152_347441, steps = 26254_484239L)
         assert(result.isSuccess)
         assert(result.budget == scalusBudget)
 
         compareBudgetWithReferenceValue(
           testName = "ClausifyTest.F3",
           scalusBudget = scalusBudget,
-          refBudget = ExUnits(memory = 136054751L, steps = 41872495549L),
+          refBudget = ExUnits(memory = 136_054751, steps = 41872_495549L),
           isPrintComparison = true
         )
     }
@@ -1085,16 +1085,16 @@ class ClausifyTest extends AnyFunSuite, ScalusTest:
         val options = summon[Options]
         val scalusBudget =
             if options.targetProtocolVersion >= MajorProtocolVersion.vanRossemPV then
-                ExUnits(memory = 180742722L, steps = 46259878217L)
-            else ExUnits(memory = 344589971L, steps = 100725854354L)
-        // val scalusBudget = ExUnits(memory = 214968623L, steps = 37733187149L)
+                ExUnits(memory = 180_182622, steps = 46170_262217L)
+            else ExUnits(memory = 344_589971, steps = 100725_854354L)
+        // val scalusBudget = ExUnits(memory = 214_968623, steps = 37733_187149L)
         assert(result.isSuccess)
         assert(result.budget == scalusBudget)
 
         compareBudgetWithReferenceValue(
           testName = "ClausifyTest.F4",
           scalusBudget = scalusBudget,
-          refBudget = ExUnits(memory = 181055087L, steps = 56754761923L),
+          refBudget = ExUnits(memory = 181_055087, steps = 56754_761923L),
           isPrintComparison = true
         )
     }
@@ -1112,16 +1112,16 @@ class ClausifyTest extends AnyFunSuite, ScalusTest:
         val options = summon[Options]
         val scalusBudget =
             if options.targetProtocolVersion >= MajorProtocolVersion.vanRossemPV then
-                ExUnits(memory = 608492502L, steps = 166680757721L)
-            else ExUnits(memory = 1205574641L, steps = 363306861308L)
-        // val scalusBudget = ExUnits(memory = 736503639L, steps = 127163562591L)
+                ExUnits(memory = 607_394202, steps = 166505_029721L)
+            else ExUnits(memory = 1205_574641, steps = 363306_861308L)
+        // val scalusBudget = ExUnits(memory = 736_503639, steps = 127163_562591L)
         assert(result.isSuccess)
         assert(result.budget == scalusBudget)
 
         compareBudgetWithReferenceValue(
           testName = "ClausifyTest.F5",
           scalusBudget = scalusBudget,
-          refBudget = ExUnits(memory = 660668247L, steps = 203182153626L),
+          refBudget = ExUnits(memory = 660_668247, steps = 203182_153626L),
           isPrintComparison = true
         )
     }
