@@ -18,7 +18,7 @@ Builtin functions are available in different Plutus versions:
 - **Plutus V1** - Original builtins (integers, bytestrings, lists, data, basic crypto)
 - **Plutus V2** - Added `serialiseData`, SECP256k1 signatures
 - **Plutus V3** - Added BLS12-381, Keccak-256, bitwise operations
-- **Plutus V4** - Added array operations, `dropList`, `ripemd_160`, BuiltinValue operations
+- **Plutus V3 (Protocol Version 11+)** - Added array operations, `dropList`, `ripemd_160`, BuiltinValue operations
 
 ## Integer Operations
 
@@ -211,11 +211,11 @@ val head = Builtins.headList(list)  // 0
 val tail = Builtins.tailList(list)  // [1, 2, 3]
 val isEmpty = Builtins.nullList(list)  // false
 
-// Drop first n elements (Plutus V4+)
+// Drop first n elements (Plutus V3, PV 11+)
 val dropped = Builtins.dropList(BigInt(2), list)  // [2, 3]
 ```
 
-## Array Operations (Plutus V4+)
+## Array Operations (Plutus V3, PV 11+)
 
 O(1) indexed access to elements. See [CIP-156](https://github.com/cardano-foundation/CIPs/tree/master/CIP-0156) for specification.
 
@@ -328,7 +328,7 @@ val blake224 = Builtins.blake2b_224(ByteString.fromString("message"))  // 28 byt
 // Note: This is original Keccak, not NIST SHA-3
 val keccak = Builtins.keccak_256(ByteString.fromString("message"))  // 32 bytes
 
-// RIPEMD-160 (Plutus V4+) - Bitcoin compatible
+// RIPEMD-160 (Plutus V3, PV 11+) - Bitcoin compatible
 val ripemd = Builtins.ripemd_160(ByteString.fromString("message"))  // 20 bytes
 ```
 
