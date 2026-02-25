@@ -1,6 +1,6 @@
 package scalus.cardano.onchain.plutus.prelude
 
-import scalus.{Compile, Ignore}
+import scalus.compiler.{Compile, Ignore}
 
 /** A list of key-value pairs that stays in the UPLC `BuiltinPair` representation, avoiding costly
   * per-element conversions between `PairData` and `ConstrData` that occur when using `List[(A, B)]`
@@ -36,6 +36,22 @@ object PairList {
         it.iterator.foldRight(empty[A, B]) { case (pair, acc) => PairCons(pair, acc) }
 
     extension [A, B](self: PairList[A, B])
+
+        /** Returns the first element of this `PairList`.
+          *
+          * @return
+          *   The first key-value pair.
+          * @throws NoSuchElementException
+          *   If the `PairList` is empty.
+          * @example
+          *   {{{
+          *   PairList.single("a", 1).head === ("a", 1)
+          *   }}}
+          */
+        def head: (A, B) = self match
+            case PairNil           => throw new NoSuchElementException("head of empty PairList")
+            case PairCons(head, _) => head
+
         /** Converts this `PairList` to a `List[(A, B)]`.
           *
           * On-chain this is a zero-cost operation (noop in UPLC) because both types share the same

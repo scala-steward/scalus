@@ -1,16 +1,13 @@
 package scalus.cardano.onchain.plutus.v1
 
-import scalus.{Compile, Ignore}
-import scalus.uplc.builtin.ByteString
-import scalus.uplc.builtin.Builtins.*
-import scalus.uplc.builtin.Data.{fromData, toData}
-import scalus.uplc.builtin.{Data, FromData, ToData}
 import scalus.cardano.ledger
 import scalus.cardano.ledger.{AssetName, Coin, Hash, MultiAsset}
 import scalus.cardano.onchain.plutus.prelude
-import scalus.cardano.onchain.plutus.prelude.{List, Option, SortedMap}
-import scalus.cardano.onchain.plutus.prelude.{Eq, Ord, Order}
-import scalus.cardano.onchain.plutus.prelude.{!==, <=>, ===}
+import scalus.cardano.onchain.plutus.prelude.{!==, <=>, ===, Eq, List, Option, Ord, Order, SortedMap}
+import scalus.compiler.{Compile, Ignore}
+import scalus.uplc.builtin.Builtins.*
+import scalus.uplc.builtin.Data.{fromData, toData}
+import scalus.uplc.builtin.{ByteString, Data, FromData, ToData}
 
 import scala.annotation.tailrec
 
@@ -241,7 +238,7 @@ object Value extends ValueOffchainOps {
     ): Value = Value(
       SortedMap.fromStrictlyAscendingList(
         list.map { case (policyId, tokens) =>
-            scalus.cardano.onchain.plutus.prelude.require(
+            prelude.require(
               tokens.nonEmpty && tokens.forall { case (_, v) => v !== BigInt(0) },
               "Token amounts must be non-zero and token lists must not be empty"
             )
@@ -633,7 +630,7 @@ object Value extends ValueOffchainOps {
 
             val payload = fromData[SortedMap[PolicyId, SortedMap[TokenName, BigInt]]](data)
 
-            scalus.cardano.onchain.plutus.prelude.require(
+            prelude.require(
               payload.forall { case (_, tokens) =>
                   tokens.nonEmpty && tokens.forall { case (_, v) => v !== BigInt(0) }
               },
@@ -693,7 +690,7 @@ object Value extends ValueOffchainOps {
           *   value.lovelaceAmount === BigInt(1000000)
           *   }}}
           */
-        def lovelaceAmount: BigInt = v.toSortedMap.toList.head._2.toList.head._2
+        def lovelaceAmount: BigInt = v.toSortedMap.toPairList.head._2.toPairList.head._2
 
         /** Checks if this `Value` is zero, meaning it contains no tokens or currency symbols.
           *

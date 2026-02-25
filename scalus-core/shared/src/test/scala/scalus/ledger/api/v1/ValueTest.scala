@@ -130,118 +130,6 @@ class ValueTest extends AnyFunSuite with EvalTestKit with ArbitraryInstances {
     }
 
     test("unsafeFromList") {
-
-        val sir = scalus.compiler.compile {
-            // (list: List[(PolicyId, List[(TokenName, BigInt)])]) =>
-            (d: Data) =>
-                import scalus.cardano.onchain.plutus.prelude.*
-                val list = Data.fromData[
-                  scalus.cardano.onchain.plutus.prelude.List[
-                    (PolicyId, scalus.cardano.onchain.plutus.prelude.List[(TokenName, BigInt)])
-                  ]
-                ](d)
-                // val validList = list
-                // list.distinct(using Eq.keyPairEq)
-                /* .quicksort(using Ord.keyPairOrd)
-                        .filterMap { case (cs, tokens) =>
-                            val validTokens = tokens
-                                .distinct(using Eq.keyPairEq)
-                                .quicksort(using Ord.keyPairOrd)
-                                .filter { case (_, value) =>
-                                    value !== BigInt(0)
-                                }
-
-                            if validTokens.nonEmpty then Option.Some((cs, validTokens))
-                            else Option.None
-                        }
-                 */
-                // list.map { case (cs, tnList) => (cs, SortedMap.unsafeFromList(tnList)) }
-                // val (cs, tnList) = list.head
-                list.headOption match {
-                    case Option.Some(v) =>
-                        log("negora assign")
-                        // val (cs, tnList) = v
-                        v match
-                            case (cs, tnList) =>
-                                log("parsed pair")
-                                val q = (cs, tnList)
-                                log("after assign")
-                            case _ =>
-                                log("not a pair")
-                        log("after assign")
-                    case Option.None =>
-                        throw new RuntimeException("List is empty, cannot extract head")
-                }
-                // SortedMap.unsafeFromList(tnList)
-                /*
-                Value.unsafeFromList(validList).toSortedMap === SortedMap.unsafeFromList(
-                  validList.map { case (cs, tnList) => (cs, SortedMap.unsafeFromList(tnList)) }
-                )
-
-                 */
-
-        }
-        /*
-        import scalus.*
-        import scalus.cardano.onchain.plutus.prelude.*
-        import scalus.uplc.*
-
-        println(s"sir=${sir.pretty.render(100)}")
-
-        val lw = sir.toLoweredValue()
-        println(s"lwe=${lw.pretty.render(100)}")
-
-        val uplc = sir.toUplc()
-        println(s"uplc=${uplc.pretty.render(100)}")
-
-        val listFromDataSir = scalus.compiler.compile { (x: Data) =>
-            Data.fromData[
-              scalus.cardano.onchain.plutus.prelude.List[(PolicyId, scalus.cardano.onchain.plutus.prelude.List[(TokenName, BigInt)])]
-            ](x)
-        }
-
-        val arg0 =
-            List.Cons(
-              (
-                "fc7f1f7f1380d97aff4eff207fabdcffbe7f80f4012300ec807a7fbf9701017fffb4347f7fc401",
-                List.Cons(
-                  ("000e01628001", BigInt(104929086447450L)),
-                  List.Cons(("fbff7f011b530100ff8a01a3", BigInt(-173061477122556L)), List.Nil)
-                )
-              ),
-              List.Nil
-            )
-        val arg0Data = arg0.toData
-        println(s"arg0Data=${arg0Data}")
-
-        val arg0DataUplc = listFromDataSir.toUplc() $ Term.Const(Constant.Data(arg0Data))
-
-        val arg0DataTerm = arg0DataUplc.evaluateDebug match {
-            case Success(term, budget, costs, logs) =>
-                term
-            case Failure(ex, budget, cost, logs) =>
-                println(s"UPLC evaluation failed (1): $ex")
-                println(s"logs: $logs")
-                assert(false, "UPLC evaluation failed")
-                throw ex
-        }
-
-        // val uplcWithArg = uplc $ arg0DataTerm
-        val uplcWithArg = uplc $ Term.Const(Constant.Data(arg0Data))
-        // println(s"uplcWithArg= ${uplcWithArg.pretty.render(100)}")
-
-        val result = uplcWithArg.evaluateDebug match {
-            case Success(term, budget, costs, logs) =>
-                term
-            case Failure(ex, budget, cost, logs) =>
-                println(s"UPLC evaluation failed (2): $ex")
-                println(s"logs: $logs")
-                assert(false, "UPLC evaluation failed")
-        }
-
-
-         */
-
         checkEval { (list: List[(PolicyId, List[(TokenName, BigInt)])]) =>
             val validList =
                 list.distinct(using Eq.keyPairEq)
@@ -1099,9 +987,8 @@ class ValueTest extends AnyFunSuite with EvalTestKit with ArbitraryInstances {
         assertEvalWithBudget(
           Value.lovelace(BigInt(1000)).lovelaceAmount,
           BigInt(1000),
-          ExUnits(memory = 58251, steps = 16716620)
+          ExUnits(memory = 39651, steps = 11271792)
         )
-
         // returns correct lovelace for value with lovelace + native asset
         assertEvalWithBudget(
           Value
@@ -1116,7 +1003,7 @@ class ValueTest extends AnyFunSuite with EvalTestKit with ArbitraryInstances {
               )
               .lovelaceAmount,
           BigInt(2000),
-          ExUnits(memory = 261274, steps = 74062546)
+          ExUnits(memory = 239054, steps = 67185637)
         )
 
         // fails on Value.zero (empty list)
