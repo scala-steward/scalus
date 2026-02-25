@@ -140,23 +140,20 @@ This validator enforces three rules:
 
 **Compilation pipeline** — The `MintingPolicyGenerator` compiles Scala to Plutus Core:
 
-```scala copy {3,6,11}
+```scala copy {3,6,7}
 object MintingPolicyGenerator {
-    // Compile to Scalus Intermediate Representation (SIR)
-    val mintingPolicySIR: SIR = compile(MintingPolicy.validate)
+    // Compile to CompiledPlutus (wraps SIR + UPLC + PlutusScript)
+    val compiled: PlutusV3[Data => Data => Unit] = PlutusV3.compile(compile(MintingPolicy.validate))
 
-    // Convert to optimized UPLC (Untyped Plutus Core)
-    val program: Program = mintingPolicySIR.toUplcOptimized(generateErrorTraces = true).plutusV3
-
-    // Create a parameterized script
-    def makeMintingPolicyScript(adminPubKeyHash: PubKeyHash, tokenName: TokenName): MintingPolicyScript = {
+    // Apply configuration to get a concrete minting policy
+    def makeMintingPolicy(adminPubKeyHash: PubKeyHash, tokenName: TokenName): PlutusV3[Data => Unit] = {
         val config = MintingConfig(adminPubKeyHash, tokenName)
-        MintingPolicyScript(program = program $ config.toData)  // Apply config with $
+        compiled.apply(config.toData)
     }
 }
 ```
 
-The `$` operator applies the configuration to the program template, producing a fully instantiated script.
+The `.apply()` method applies the configuration to the compiled template, producing a fully instantiated `PlutusV3` that can be used directly in transaction builders.
 
 ### Transaction Building
 
@@ -186,10 +183,10 @@ def makeMintingTx(amount: Long): Either[String, Transaction] = {
             .spend(utxos)                              // Include UTxOs as inputs
             .collaterals(firstUtxo)                    // Collateral for script execution
             .mint(
-              script = ctx.mintingScript.scalusScript, // The minting policy
-              assets = assets,                         // What to mint
-              redeemer = Data.unit,                    // Redeemer (unused here)
-              requiredSigners = Set(ctx.addrKeyHash)   // Admin must sign
+              ctx.mintingPolicy,                       // The compiled minting policy
+              assets,                                  // What to mint
+              Data.unit,                               // Redeemer (unused here)
+              Set(ctx.addrKeyHash)                     // Admin must sign
             )
             .payTo(ctx.address, mintedValue)           // Send tokens to ourselves
             .complete(ctx.provider, ctx.address)       // Balance and calculate fees
@@ -201,6 +198,7 @@ def makeMintingTx(amount: Long): Either[String, Transaction] = {
 ```
 
 Key concepts:
+- **`CompiledPlutus`**: Passing the compiled contract (not a raw `PlutusScript`) enables diagnostic replay — if the script fails, TxBuilder recompiles with error traces and replays the execution
 - **Collateral**: Required for Plutus script execution; seized if the script fails
 - **Required signers**: Ensures the admin key hash appears in `tx.signatories`
 - **`complete()`**: Automatically selects inputs and balances the transaction
@@ -212,7 +210,7 @@ Key concepts:
 val assets = Map(assetName -> amount)  // amount should be negative
 
 TxBuilder(ctx.cardanoInfo)
-    .mint(script = ..., assets = assets, ...)
+    .mint(ctx.mintingPolicy, assets, Data.unit, Set(ctx.addrKeyHash))
     .complete(...)
     // No payTo needed — burned tokens simply disappear
 ```

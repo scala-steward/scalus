@@ -181,10 +181,9 @@ def lock(
     value: Value,
     datum: ContractDatum
 ): Transaction = {
-    val scriptAddress = HtlcContract.address(env.network)
     TxBuilder(env)
       .spend(inputUtxo)
-      .payTo(scriptAddress, value, datum.toData)
+      .payTo(HtlcContract, value, datum)
       .changeTo(changeAddress)
       .build()
 }
