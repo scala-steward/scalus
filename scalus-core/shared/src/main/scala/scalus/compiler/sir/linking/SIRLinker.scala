@@ -61,6 +61,9 @@ class SIRLinker(options: SIRLinkerOptions, moduleDefs: Map[String, Module]) {
         defaultValue
     }
 
+    private def isPairListConversion(name: String): Boolean =
+        SIRType.PairList.ConversionNames.contains(name)
+
     def link(sir: SIR, pos: SIRPosition): SIR = {
         if debugLevel > 1 then
             println(
@@ -121,6 +124,9 @@ class SIRLinker(options: SIRLinkerOptions, moduleDefs: Map[String, Module]) {
                     error(msg, ann.pos, v)
                 // For fromData/toData, we allow them as ExternalVar here
                 // They will be handled during UPLC lowering in Apply position
+            else if isPairListConversion(name) then ()
+            // PairList.toList and PairList.toPairList are always noops in UPLC lowering.
+            // Skip linking to avoid dead-code let-bindings and their transitive dependencies.
             else linkDefinition(moduleName, name, pos, tp, ann)
             v
         case v @ SIR.Let(bindings, body, flags, anns) =>

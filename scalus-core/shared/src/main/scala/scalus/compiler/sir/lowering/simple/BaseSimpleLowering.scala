@@ -172,6 +172,15 @@ abstract class BaseSimpleLowering(
     protected def getWildcardBindings(constrDecl: ConstrDecl): List[String] =
         constrDecl.params.map(_.name)
 
+    private def isPairListConversion(app: SIR.Apply): Boolean = {
+        app.f match
+            case SIR.ExternalVar(_, name, _, _) =>
+                SIRType.PairList.ConversionNames.contains(name)
+            case SIR.Var(name, _, _) =>
+                SIRType.PairList.ConversionNames.contains(name)
+            case _ => false
+    }
+
     /** Check if a SIR type is a primitive type that supports constant pattern matching. */
     protected def isPrimitiveType(sirType: SIRType): Boolean = sirType match {
         case SIRType.Boolean    => true
@@ -604,7 +613,9 @@ abstract class BaseSimpleLowering(
                 // TODO: implement mutual recursion
                 sys.error(s"Mutually recursive bindings are not supported: $bindings")
             case SIR.LamAbs(name, term, tps, _) => Term.LamAbs(name.name, lowerInner(term))
-            case SIR.Apply(f, arg, _, _)        => Term.Apply(lowerInner(f), lowerInner(arg))
+            case app @ SIR.Apply(f, arg, _, _) =>
+                if isPairListConversion(app) then lowerInner(arg)
+                else Term.Apply(lowerInner(f), lowerInner(arg))
             case SIR.Select(scrutinee, field, tp, anns) =>
                 lowerSelect(scrutinee, field, tp, anns)
             case SIR.Const(const, _, _) => Term.Const(const)

@@ -18,6 +18,7 @@ case class SortedMap[A, B] private (toList: List[(A, B)])
 object SortedMap {
     import List.*
     import Option.*
+    import PairList.{empty as _, from as _, single as _, *}
 
     /** Constructs an empty `SortedMap`.
       *
@@ -350,6 +351,12 @@ object SortedMap {
         }
 
     extension [A, B](self: SortedMap[A, B])
+        /** Converts the `SortedMap` to a `PairList`.
+          *
+          * On-chain this is efficient: `toList` does `unMapData` and `toPairList` is a noop.
+          */
+        def toPairList: PairList[A, B] = PairList.toPairList(self.toList)
+
         /** Checks if the `SortedMap` is empty.
           *
           * @return
@@ -409,7 +416,9 @@ object SortedMap {
           *   SortedMap.fromList(List.Cons(("a", 1), List.Cons(("b", 2), List.Nil))).keys === List.Cons("a", List.Cons("b", List.Nil))
           *   }}}
           */
-        def keys: List[A] = self.toList.map { case (k, _) => k }
+        def keys: List[A] = self.toPairList.foldRight(List.empty[A]) { case ((k, _), acc) =>
+            List.Cons(k, acc)
+        }
 
         /** Returns a list of values in the `SortedMap`.
           *
@@ -422,7 +431,9 @@ object SortedMap {
           *   SortedMap.fromList(List.Cons(("a", 1), List.Cons(("b", 2), List.Nil))).values === List.Cons(1, List.Cons(2, List.Nil))
           *   }}}
           */
-        def values: List[B] = self.toList.map { case (_, v) => v }
+        def values: List[B] = self.toPairList.foldRight(List.empty[B]) { case ((_, v), acc) =>
+            List.Cons(v, acc)
+        }
 
         /** Checks if a predicate holds for all key-value pairs in the `SortedMap`.
           *
@@ -438,7 +449,7 @@ object SortedMap {
           *   SortedMap.fromList(List.Cons(("a", 1), List.Cons(("b", 2), List.Nil))).forall(_._2 > 0) === true
           *   }}}
           */
-        def forall(f: ((A, B)) => Boolean): Boolean = self.toList.forall(f)
+        def forall(f: ((A, B)) => Boolean): Boolean = self.toPairList.forall(f)
 
         /** Checks if a predicate holds for at least one key-value pair in the `SortedMap`.
           *
@@ -454,9 +465,11 @@ object SortedMap {
           *   SortedMap.fromList(List.Cons(("a", 1), List.Cons(("b", 2), List.Nil))).exists(_._2 > 1) === true
           *   }}}
           */
-        def exists(f: ((A, B)) => Boolean): Boolean = self.toList.exists(f)
+        def exists(f: ((A, B)) => Boolean): Boolean = self.toPairList.exists(f)
 
         /** Maps the values of the `SortedMap` using a function.
+          *
+          * On-chain this uses `PairList.mapValues` which is ~3x cheaper than `List.map` on tuples.
           *
           * @param f
           *   the function to apply to each value
@@ -468,9 +481,8 @@ object SortedMap {
           *   SortedMap.fromList(List.Cons(("a", 1), List.Cons(("b", 2), List.Nil))).mapValues(_ * 2).toList === List.Cons(("a", 2), List.Cons(("b", 4), List.Nil))
           *   }}}
           */
-        def mapValues[C](f: B => C): SortedMap[A, C] = SortedMap(
-          self.toList.map((k, v) => (k, f(v)))
-        )
+        def mapValues[C](f: B => C): SortedMap[A, C] =
+            SortedMap(self.toPairList.mapValues(f).toList)
 
         /** Filters the keys of the `SortedMap` based on a predicate.
           *
@@ -485,9 +497,9 @@ object SortedMap {
           *   }}}
           */
         def filterKeys(predicate: A => Boolean): SortedMap[A, B] =
-            SortedMap(self.toList.filter { case (k, _) =>
+            SortedMap(self.toPairList.filter { case (k, _) =>
                 predicate(k)
-            })
+            }.toList)
 
         /** Filters the key-value pairs of the `SortedMap` based on a predicate.
           *
@@ -501,7 +513,7 @@ object SortedMap {
           *   }}}
           */
         def filter(predicate: ((A, B)) => Boolean): SortedMap[A, B] =
-            SortedMap(self.toList.filter(predicate))
+            SortedMap(self.toPairList.filter(predicate).toList)
 
         /** Filters the key-value pairs of the `SortedMap` based on a negated predicate.
           *
@@ -516,7 +528,7 @@ object SortedMap {
           *   }}}
           */
         def filterNot(predicate: ((A, B)) => Boolean): SortedMap[A, B] =
-            SortedMap(self.toList.filterNot(predicate))
+            SortedMap(self.toPairList.filterNot(predicate).toList)
 
         /** Optionally returns the first key-value pair that satisfies a predicate.
           *
@@ -531,7 +543,8 @@ object SortedMap {
           *   SortedMap.fromList(List.Cons(("a", 1), List.Cons(("b", 2), List.Nil))).find(_._1 === "c") === None
           *   }}}
           */
-        def find(predicate: ((A, B)) => Boolean): Option[(A, B)] = self.toList.find(predicate)
+        def find(predicate: ((A, B)) => Boolean): Option[(A, B)] =
+            self.toPairList.find(predicate)
 
         /** Finds the first key-value pair that satisfies a predicate and maps it to a new type.
           *
@@ -572,12 +585,8 @@ object SortedMap {
           *   SortedMap.fromList(List.Cons(("a", 1), List.Cons(("b", 2), List.Nil))).foldLeft(0)(_ + _._2) === 3
           *   }}}
           */
-        def foldLeft[C](init: C)(combiner: (C, (A, B)) => C): C = {
-            self.toList match
-                case Nil => init
-                case Cons(pair, tail) =>
-                    SortedMap(tail).foldLeft(combiner(init, pair))(combiner)
-        }
+        def foldLeft[C](init: C)(combiner: (C, (A, B)) => C): C =
+            self.toPairList.foldLeft(init)(combiner)
 
         /** Folds the `SortedMap` from the right, combining key-value pairs into a single value.
           *
@@ -593,7 +602,7 @@ object SortedMap {
           *   }}}
           */
         def foldRight[C](init: C)(combiner: ((A, B), C) => C): C =
-            self.toList.foldRight(init) { (pair, acc) => combiner(pair, acc) }
+            self.toPairList.foldRight(init)(combiner)
 
     extension [A: Ord, B](self: SortedMap[A, B])
         /** Optionally returns the value associated with a key.

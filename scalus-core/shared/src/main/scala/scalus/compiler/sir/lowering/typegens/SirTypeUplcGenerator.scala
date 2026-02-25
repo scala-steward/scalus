@@ -81,6 +81,9 @@ object SirTypeUplcGenerator {
             case SIRType.SumCaseClass(decl, typeArgs) =>
                 val trace = new IdentityHashMap[SIRType, SIRType]()
                 if decl.name == SIRType.Data.name then SIRTypeUplcDataGenerator
+                else if decl.name == SumListCommonSirTypeGenerator.PairListDataDeclName then
+                    if !containsFun(tp, trace) then SumPairDataListSirTypeGenerator
+                    else SumCaseUplcOnlySirTypeGenerator
                 else if decl.name == "scalus.cardano.onchain.plutus.prelude.List" then
                     if !containsFun(tp, trace) then {
                         if isPair(typeArgs.head) // isPairOrTuple2(typeArgs.head)
@@ -122,8 +125,13 @@ object SirTypeUplcGenerator {
                     val hasFun = containsFun(constrDecl, new IdentityHashMap[SIRType, SIRType]())
                     if constrDecl.name == SIRType.List.NilConstr.name || constrDecl.name == SIRType.List.Cons.name
                         || constrDecl.name == SIRType.BuiltinList.Nil.name || constrDecl.name == SIRType.BuiltinList.Cons.name
+                        || constrDecl.name == SumListCommonSirTypeGenerator.PairNilName || constrDecl.name == SumListCommonSirTypeGenerator.PairConsName
                     then {
                         if hasFun then SumCaseUplcOnlySirTypeGenerator
+                        // PairList constructors always use SumPairDataList
+                        else if constrDecl.name == SumListCommonSirTypeGenerator.PairNilName
+                            || constrDecl.name == SumListCommonSirTypeGenerator.PairConsName
+                        then SumPairDataListSirTypeGenerator
                         else if (constrDecl.name == SIRType.List.Cons.name || constrDecl.name == SIRType.BuiltinList.Cons.name) && isPairOrTuple2(
                               typeArgs.head
                             )

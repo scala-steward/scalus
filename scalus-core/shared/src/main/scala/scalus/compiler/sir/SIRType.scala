@@ -532,6 +532,20 @@ object SIRType {
 
     }
 
+    object PairList {
+        val DataDeclName = "scalus.cardano.onchain.plutus.prelude.PairList"
+        val PairNilName = "scalus.cardano.onchain.plutus.prelude.PairList$.PairNil"
+        val PairConsName = "scalus.cardano.onchain.plutus.prelude.PairList$.PairCons"
+
+        /** Names of PairList conversion functions that are always noops in UPLC. Used by the linker
+          * (to skip linking) and both lowering backends (to emit noop).
+          */
+        val ConversionNames: Set[String] = Set(
+          "scalus.cardano.onchain.plutus.prelude.PairList$.toList",
+          "scalus.cardano.onchain.plutus.prelude.PairList$.toPairList"
+        )
+    }
+
     object BuiltinPair {
 
         val name = "scalus.uplc.builtin.BuiltinPair"

@@ -8,7 +8,7 @@ import scalus.compiler.sir.*
 import scala.util.control.NonFatal
 
 /** handle next cases: scalus.cardano.onchain.plutus.prelude.List[A]
-  * scalus.uplc.builtin.BuiltinList[A]
+  * scalus.uplc.builtin.BuiltinList[A] scalus.cardano.onchain.plutus.prelude.PairList[A, B]
   */
 trait SumListCommonSirTypeGenerator extends SirTypeUplcGenerator {
 
@@ -284,10 +284,11 @@ trait SumListCommonSirTypeGenerator extends SirTypeUplcGenerator {
     }
 
     override def genConstr(constr: SIR.Constr)(using lctx: LoweringContext): LoweredValue = {
+        import SumListCommonSirTypeGenerator.*
         constr.name match
-            case SIRType.List.NilConstr.name | SIRType.BuiltinList.Nil.name =>
+            case SIRType.List.NilConstr.name | SIRType.BuiltinList.Nil.name | PairNilName =>
                 genNil(constr.tp, constr.anns.pos)
-            case SIRType.List.Cons.name | SIRType.BuiltinList.Cons.name =>
+            case SIRType.List.Cons.name | SIRType.BuiltinList.Cons.name | PairConsName =>
                 if constr.args.size != 2 then
                     throw LoweringException(
                       s"Constr construnctor with ${constr.args.size} args, should be 2",
@@ -348,11 +349,13 @@ trait SumListCommonSirTypeGenerator extends SirTypeUplcGenerator {
     }
 
     def isNilType(tp: SIRType): Boolean = {
+        import SumListCommonSirTypeGenerator.*
         SIRType.retrieveConstrDecl(tp) match {
             case Left(r) => false
             case Right(constrDecl) =>
                 constrDecl.name == SIRType.List.NilConstr.name
                 || constrDecl.name == SIRType.BuiltinList.Nil.name
+                || constrDecl.name == PairNilName
         }
     }
 
@@ -413,16 +416,40 @@ trait SumListCommonSirTypeGenerator extends SirTypeUplcGenerator {
     }
 
     def retrieveElementType(tp: SIRType, pos: SIRPosition)(using lctx: LoweringContext): SIRType = {
+        import SumListCommonSirTypeGenerator.*
         tp match {
             case SIRType.SumCaseClass(decl, typeArgs) =>
-                typeArgs.head
+                if decl.name == PairListDataDeclName then
+                    // PairList[A, B] has element type (A, B) — get it from PairCons head param
+                    val pairCons = decl.constructors
+                        .find(_.name == PairConsName)
+                        .getOrElse(
+                          throw LoweringException(
+                            s"PairCons constructor not found in ${decl.name}",
+                            pos
+                          )
+                        )
+                    SIRType.substitute(
+                      pairCons.params.head.tp,
+                      decl.typeParams.zip(typeArgs).toMap,
+                      Map.empty
+                    )
+                else typeArgs.head
             case SIRType.CaseClass(constrDecl, typeArgs, optParent) =>
                 if constrDecl.name == SIRType.List.NilConstr.name
                     || constrDecl.name == SIRType.BuiltinList.Nil.name
+                    || constrDecl.name == PairNilName
                 then SIRType.FreeUnificator
                 else if constrDecl.name == SIRType.List.Cons.name
                     || constrDecl.name == SIRType.BuiltinList.Cons.name
                 then typeArgs.head
+                else if constrDecl.name == PairConsName then
+                    // PairCons[A, B] has head: (A, B) — substitute type args
+                    SIRType.substitute(
+                      constrDecl.params.head.tp,
+                      constrDecl.typeParams.zip(typeArgs).toMap,
+                      Map.empty
+                    )
                 else
                     throw LoweringException(
                       s"Unknown case class ${constrDecl.name} for List",
@@ -460,6 +487,7 @@ trait SumListCommonSirTypeGenerator extends SirTypeUplcGenerator {
         lctx: LoweringContext
     ): LoweredValue = {
         // Nil, Cons
+        import SumListCommonSirTypeGenerator.*
         var optNilCase: Option[SIR.Case] = None
         var optConsCase: Option[SIR.Case] = None
         var optWildcardCase: Option[SIR.Case] = None
@@ -468,11 +496,13 @@ trait SumListCommonSirTypeGenerator extends SirTypeUplcGenerator {
             cs.pattern match
                 case SIR.Pattern.Constr(constrDecl, _, _)
                     if constrDecl.name == SIRType.List.NilConstr.name
-                        || constrDecl.name == SIRType.BuiltinList.Nil.name =>
+                        || constrDecl.name == SIRType.BuiltinList.Nil.name
+                        || constrDecl.name == PairNilName =>
                     optNilCase = Some(cs)
                 case SIR.Pattern.Constr(constrDecl, _, _)
                     if constrDecl.name == SIRType.List.Cons.name
-                        || constrDecl.name == SIRType.BuiltinList.Cons.name =>
+                        || constrDecl.name == SIRType.BuiltinList.Cons.name
+                        || constrDecl.name == PairConsName =>
                     optConsCase = Some(cs)
                 case SIR.Pattern.Wildcard =>
                     optWildcardCase = Some(cs)
@@ -620,6 +650,7 @@ trait SumListCommonSirTypeGenerator extends SirTypeUplcGenerator {
                 )
             if constrDecl.name == SIRType.List.NilConstr.name
                 || constrDecl.name == SIRType.BuiltinList.Nil.name
+                || constrDecl.name == PairNilName
             then {
                 println("info: unused case Cons in List match will be removed")
                 optLoweredNilBody.getOrElse(
@@ -630,6 +661,7 @@ trait SumListCommonSirTypeGenerator extends SirTypeUplcGenerator {
                 )
             } else if constrDecl.name == SIRType.List.Cons.name
                 || constrDecl.name == SIRType.BuiltinList.Cons.name
+                || constrDecl.name == PairConsName
             then {
                 println("info: unused case Nil in List match will be removed")
                 optLoweredConsBody.getOrElse(
@@ -693,4 +725,10 @@ trait SumListCommonSirTypeGenerator extends SirTypeUplcGenerator {
             retval
     }
 
+}
+
+object SumListCommonSirTypeGenerator {
+    val PairListDataDeclName = SIRType.PairList.DataDeclName
+    val PairNilName = SIRType.PairList.PairNilName
+    val PairConsName = SIRType.PairList.PairConsName
 }

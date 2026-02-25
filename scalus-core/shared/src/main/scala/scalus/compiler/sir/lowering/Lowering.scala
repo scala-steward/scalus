@@ -44,7 +44,9 @@ object Lowering {
             case constr @ SIR.Constr(name, decl, args, tp, anns) =>
                 val resolvedType = lctx.resolveTypeVarIfNeeded(tp)
                 val typeGenerator =
-                    if name == "scalus.cardano.onchain.plutus.prelude.List$.Nil" then
+                    if name == "scalus.cardano.onchain.plutus.prelude.List$.Nil"
+                        || name == typegens.SumListCommonSirTypeGenerator.PairNilName
+                    then
                         optTargetType match
                             case Some(targetType) =>
                                 lctx.typeGenerator(targetType)
@@ -426,6 +428,7 @@ object Lowering {
     ): LoweredValue = {
         if isFromDataApp(app) then lowerFromData(app)
         else if isToDataApp(app) then lowerToData(app)
+        else if isPairListConversion(app) then lowerPairListConversion(app)
         else lowerNormalApp(app, optTargetType)
     }
 
@@ -553,6 +556,29 @@ object Lowering {
             }
 
         }
+    }
+
+    private def isPairListConversionName(name: String): Boolean =
+        SIRType.PairList.ConversionNames.contains(name)
+
+    private def isPairListConversion(app: SIR.Apply): Boolean = {
+        app.f match
+            case SIR.ExternalVar(_, name, _, _) => isPairListConversionName(name)
+            case SIR.Var(name, _, _)            => isPairListConversionName(name)
+            case _                              => false
+    }
+
+    private def lowerPairListConversion(
+        app: SIR.Apply
+    )(using lctx: LoweringContext): LoweredValue = {
+        val loweredArg = lctx.lower(app.arg)
+        // Convert to SumDataPairList — the shared internal representation for both
+        // List[(A,B)] and PairList[A,B]. At real call sites (e.g. SortedMap.toList → toPairList)
+        // the value is already in SumDataPairList so this is zero-cost. Inside the function body
+        // (dead code on-chain) the value may be in SumDataList, and this handles the conversion.
+        val pairListRepr = SumCaseClassRepresentation.SumDataPairList
+        val convertedArg = loweredArg.toRepresentation(pairListRepr, app.anns.pos)
+        TypeRepresentationProxyLoweredValue(convertedArg, app.tp, pairListRepr, app.anns.pos)
     }
 
     private def lowerToData(app: SIR.Apply)(using lctx: LoweringContext): LoweredValue = {

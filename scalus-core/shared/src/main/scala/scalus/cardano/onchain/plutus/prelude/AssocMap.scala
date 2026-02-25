@@ -12,6 +12,7 @@ case class AssocMap[A, B](toList: List[(A, B)])
 object AssocMap {
     import List.*
     import Option.*
+    import PairList.{empty as _, from as _, single as _, *}
 
     def empty[A, B]: AssocMap[A, B] = AssocMap(List.empty[(A, B)])
     def singleton[A, B](key: A, value: B): AssocMap[A, B] = AssocMap(List.single((key, value)))
@@ -60,41 +61,41 @@ object AssocMap {
         }
 
     extension [A, B](self: AssocMap[A, B])
+        def toPairList: PairList[A, B] = PairList.toPairList(self.toList)
         inline def isEmpty: Boolean = self.toList.isEmpty
         inline def nonEmpty: Boolean = self.toList.nonEmpty
         inline def length: BigInt = self.toList.length
         inline def size: BigInt = length
-        def keys: List[A] = self.toList.map { case (k, _) => k }
-        def values: List[B] = self.toList.map { case (_, v) => v }
-        def mapValues[C](f: B => C): AssocMap[A, C] = AssocMap(self.toList.map((k, v) => (k, f(v))))
-        def forall(f: ((A, B)) => Boolean): Boolean = self.toList.forall(f)
-        def exists(f: ((A, B)) => Boolean): Boolean = self.toList.exists(f)
+        def keys: List[A] = self.toPairList.foldRight(List.empty[A]) { case ((k, _), acc) =>
+            Cons(k, acc)
+        }
+        def values: List[B] = self.toPairList.foldRight(List.empty[B]) { case ((_, v), acc) =>
+            Cons(v, acc)
+        }
+        def mapValues[C](f: B => C): AssocMap[A, C] =
+            AssocMap(self.toPairList.mapValues(f).toList)
+        def forall(f: ((A, B)) => Boolean): Boolean = self.toPairList.forall(f)
+        def exists(f: ((A, B)) => Boolean): Boolean = self.toPairList.exists(f)
 
-        def filterKeys(predicate: A => Boolean): AssocMap[A, B] = AssocMap(self.toList.filter {
-            case (k, _) => predicate(k)
-        })
+        def filterKeys(predicate: A => Boolean): AssocMap[A, B] =
+            AssocMap(self.toPairList.filter { case (k, _) =>
+                predicate(k)
+            }.toList)
 
         def filter(predicate: ((A, B)) => Boolean): AssocMap[A, B] =
-            AssocMap(self.toList.filter(predicate))
+            AssocMap(self.toPairList.filter(predicate).toList)
 
         def filterNot(predicate: ((A, B)) => Boolean): AssocMap[A, B] =
-            AssocMap(self.toList.filterNot(predicate))
+            AssocMap(self.toPairList.filterNot(predicate).toList)
 
-        def find(predicate: ((A, B)) => Boolean): Option[(A, B)] = {
-            @tailrec
-            def go(lst: List[(A, B)]): Option[(A, B)] = lst match
-                case Nil => None
-                case Cons(pair, tail) =>
-                    if predicate(pair) then Some(pair) else go(tail)
-
-            go(self.toList)
-        }
+        def find(predicate: ((A, B)) => Boolean): Option[(A, B)] =
+            self.toPairList.find(predicate)
 
         def foldLeft[C](init: C)(combiner: (C, (A, B)) => C): C =
-            self.toList.foldLeft(init) { (acc, pair) => combiner(acc, pair) }
+            self.toPairList.foldLeft(init)(combiner)
 
         def foldRight[C](init: C)(combiner: ((A, B), C) => C): C =
-            self.toList.foldRight(init) { (pair, acc) => combiner(pair, acc) }
+            self.toPairList.foldRight(init)(combiner)
 
     extension [A: Eq, B](self: AssocMap[A, B])
         /** Optionally returns the value associated with a key.
