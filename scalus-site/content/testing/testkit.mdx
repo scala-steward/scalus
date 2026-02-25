@@ -1,7 +1,7 @@
 ---
 title: Testkit - Boundary & Property Testing for Smart Contracts
 sidebarTitle: Boundary Testing
-description: Test Cardano smart contracts by exploring transaction variations around boundary values. Use ScalaCheck, Scenario exploration, and standard attack patterns to find vulnerabilities.
+description: Test Cardano smart contracts by exploring transaction variations around boundary values. Use ScalaCheck, Scenario exploration, and standard attack patterns to find flaws.
 ---
 
 import { Callout } from 'nextra/components'
@@ -10,16 +10,18 @@ import { Callout } from 'nextra/components'
 
 ## The Idea
 
-Smart contract vulnerabilities often hide at boundary values — an amount just below the minimum bid, a deadline off by one slot, a missing output in a multi-UTXO transaction. Manual tests check the happy path and a few error cases, but miss the combinatorial explosion of edge cases.
+Smart contract bugs often hide at boundary values — an amount just below the minimum bid, a deadline off by one slot, a missing output in a multi-UTXO transaction. Manual tests check the happy path and a few error cases, but miss the combinatorial explosion of edge cases.
 
-Boundary testing automates this. The approach is:
+Boundary testing automates this. The core idea is **state-space exploration**:
 
-1. **Look at the blockchain** — observe the current state relevant to your contract (UTXOs, datums, balances, slot)
-2. **Build a "happy path" transaction** — the normal, valid interaction
-3. **Mutate it** — systematically vary amounts, timings, outputs, and recipients around boundary values. Also apply known attack patterns (steal outputs, corrupt datums, double satisfaction)
-4. **Submit each variation** and check that valid transactions succeed and invalid ones are rejected
+1. **Observe** the current blockchain state (UTXOs, datums, balances, slot)
+2. **Generate a set of transactions** — each representing a possible interaction with the contract
+3. **Apply each transaction in its own copy of the world**, checking invariants on the resulting state
+4. **Repeat** from step 1 on each new state — building a tree of reachable states, checking at every node
 
-The testkit includes pre-built attack patterns covering [common vulnerabilities](/docs/security/common-vulnerabilities) — you get broad security coverage with minimal setup.
+How do you generate the transaction sets in step 2? The generic interface is a **step function** `BlockchainReader => Scenario[Unit]` — you read the current state and produce any set of transactions you like using the `Scenario` monad.
+
+The most concise way to generate transaction sets is the `ContractStepVariations` helper: define a base transaction (the normal, valid interaction) and then apply **variations** that systematically change amounts, timings, outputs, and recipients around boundary values. The testkit also includes pre-built [attack patterns](/docs/security/common-vulnerabilities) (steal outputs, corrupt datums, double satisfaction) so you get broad security coverage with minimal setup.
 
 You can run boundary tests in three modes:
 - **ScalaCheck forAll** — random sampling with shrinking, single step
@@ -54,49 +56,23 @@ case class MultiUtxoState(
 
 The richer your state, the more attack vectors you can explore. For example, you can only test double satisfaction if your state tracks all UTXOs at the script address, not just one.
 
-### 2. Define Variations
+### 2. Implement ContractStepVariations
 
-`TxVariations[S]` enumerates transaction variations. The easiest approach is to use standard variations:
-
-```scala
-import scalus.testing.TxVariations
-
-// Use pre-built attack patterns
-val bidVariations = TxVariations.standard.default[AuctionState](
-    extractUtxo = _.auctionUtxo,
-    extractDatum = s => updatedDatum(s.currentBid + 1),
-    redeemer = _ => BidRedeemer.toData,
-    script = auctionScript
-)
-```
-
-For custom variations, implement the trait directly:
+To explore the state space you need to implement `ContractStepVariations[S]` — the interface that tells the testkit how to interact with your contract:
 
 ```scala
-val customVariation: TxVariations[AuctionState] = new TxVariations[AuctionState] {
-    override def enumerate(reader, state, txTemplate)(using ExecutionContext) = {
-        val txs = for amount <- TxVariations.standard.valuesAround(state.currentBid) yield
-            TxBuilder(reader.cardanoInfo)
-                .spend(state.auctionUtxo, BidRedeemer(amount).toData, auctionScript)
-                .payToScript(auctionScriptAddress, updatedDatum(amount), auctionValue)
-                .payTo(previousBidder(state), refundValue(state))
-                .validFrom(state.deadline - 10)
-
-        Future.sequence(txs.map(_.complete(reader, txTemplate.sponsor)
-            .map(_.sign(txTemplate.signer).transaction)))
-    }
+trait ContractStepVariations[S] {
+    def extractState(reader: BlockchainReader)(using ExecutionContext): Future[S]
+    def makeBaseTx(reader: BlockchainReader, state: S)(using ExecutionContext): Future[TxTemplate]
+    def variations: TxVariations[S]
 }
 ```
 
-Variations compose via `++`:
+- **`extractState`** — read the blockchain and build your observable state `S`
+- **`makeBaseTx`** — build a base transaction template that variations will modify (usually a correct happy-path transaction, but can be any starting point)
+- **`variations`** — generate a set of transactions by varying the base template (amounts, timings, recipients, etc.)
 
-```scala
-val allVariations = bidVariations ++ claimVariations ++ customVariation
-```
-
-### 3. Implement ContractStepVariations
-
-Bundle state extraction, base transaction template, and variations into one trait:
+Here's a complete implementation for the auction example:
 
 ```scala
 object AuctionStep extends ContractStepVariations[AuctionState] {
@@ -137,8 +113,42 @@ object AuctionStep extends ContractStepVariations[AuctionState] {
 ```
 
 <Callout type="info">
-`makeBaseTx` returns `Future[TxTemplate]` which bundles the builder with sponsor and signer. `variations` returns a value (not a method taking state) — state is passed to individual variation methods at enumerate time.
+`makeBaseTx` returns a `TxTemplate` which bundles the builder with sponsor and signer. `variations` here uses `TxVariations.standard.default` — pre-built [attack patterns](/docs/security/common-vulnerabilities) that give broad coverage with minimal setup. See [Defining Variations](#defining-variations) for custom variations.
 </Callout>
+
+### 3. Define Variations
+
+The `variations` field above used `TxVariations.standard.default` — the quickest way to get broad coverage. You can also write custom variations or compose them:
+
+```scala
+import scalus.testing.TxVariations
+
+// Pre-built attack patterns
+val standardVariations = TxVariations.standard.default[AuctionState](
+    extractUtxo = _.auctionUtxo,
+    extractDatum = s => updatedDatum(s.currentBid + 1),
+    redeemer = _ => BidRedeemer.toData,
+    script = auctionScript
+)
+
+// Custom boundary testing
+val customVariation: TxVariations[AuctionState] = new TxVariations[AuctionState] {
+    override def enumerate(reader, state, txTemplate)(using ExecutionContext) = {
+        val txs = for amount <- TxVariations.standard.valuesAround(state.currentBid) yield
+            TxBuilder(reader.cardanoInfo)
+                .spend(state.auctionUtxo, BidRedeemer(amount).toData, auctionScript)
+                .payToScript(auctionScriptAddress, updatedDatum(amount), auctionValue)
+                .payTo(previousBidder(state), refundValue(state))
+                .validFrom(state.deadline - 10)
+
+        Future.sequence(txs.map(_.complete(reader, txTemplate.sponsor)
+            .map(_.sign(txTemplate.signer).transaction)))
+    }
+}
+
+// Compose via ++
+val allVariations = standardVariations ++ customVariation
+```
 
 ### 4. Run Tests
 
@@ -313,7 +323,74 @@ test("auction exhaustive boundaries") {
 
 If a `Scenario.check` fails, `ScenarioExplorer` returns a `Violation` containing the action path (all `StepAction.Submit` and `StepAction.Wait` entries) that led to the failure.
 
+## ContractStepVariations
+
+The Quick Start showed a complete `ContractStepVariations` example. Here's the full trait. The type parameter `S` is the observable blockchain state — it can be as simple as a single UTXO's datum, or as rich as all UTXOs at a script address plus balances at related addresses:
+
+```scala
+trait ContractStepVariations[S] {
+    def extractState(reader: BlockchainReader)(using ExecutionContext): Future[S]
+    def makeBaseTx(reader: BlockchainReader, state: S)(using ExecutionContext): Future[TxTemplate]
+    def variations: TxVariations[S]
+
+    // convenience — builds template and enumerates variations
+    def allVariations(reader: BlockchainReader, state: S)(using ExecutionContext): Future[Seq[Transaction]]
+
+    // slot delays to explore at this step (default: empty)
+    def slotDelays(state: S): Seq[Long] = Seq.empty
+
+    // all actions — combines Submit(tx) for each variation + Wait(slots) for each delay
+    def allActions(reader: BlockchainReader, state: S)(using ExecutionContext): Future[Seq[StepAction]]
+}
+```
+
+`allActions` returns `Submit` for each transaction variation plus `Wait` for each slot delay. This means time-dependent testing is configured on the step, not on the consumer.
+
+### StepAction
+
+Each action produced by a step is a `StepAction`:
+
+```scala
+sealed trait StepAction
+object StepAction {
+    case class Submit(tx: Transaction) extends StepAction
+    case class Wait(slots: Long) extends StepAction
+}
+```
+
+Each `Submit` is applied in its own copy of the world, each `Wait` advances the slot clock.
+
+### Another Example
+
+```scala
+object HtlcStep extends ContractStepVariations[HtlcState] {
+    def extractState(reader: BlockchainReader)(using ExecutionContext) = ...
+    def makeBaseTx(reader: BlockchainReader, state: HtlcState)(using ExecutionContext) = ...
+    def variations = TxVariations.standard.default[HtlcState](
+        extractUtxo = _.utxo,
+        extractDatum = s => s.utxo.output.requireInlineDatum,
+        redeemer = _ => HtlcRedeemer.Unlock.toData,
+        script = htlcScript
+    )
+
+    // Time-dependent: explore advancing 10 and 100 slots
+    override def slotDelays(state: HtlcState) = Seq(10L, 100L)
+}
+```
+
+Override individual methods via anonymous refinement:
+
+```scala
+// Extend with custom attack variation
+new HtlcStep {
+    override def variations =
+        super.variations ++ customAttackVariation
+}
+```
+
 ## Defining Variations
+
+The `variations` field of `ContractStepVariations` returns a `TxVariations[S]` — this is how you define the set of transactions to generate from the base template.
 
 ### TxVariations — Enumerate-First (Boundary Testing)
 
@@ -475,68 +552,15 @@ Individual variations available via `TxVariations.standard`:
 These patterns correspond to [common Cardano vulnerabilities](/docs/security/common-vulnerabilities). Using `default` or `defaultExtended` is the easiest way to get broad coverage.
 </Callout>
 
-## ContractStepVariations
+## Custom Step Functions
 
-A trait that bundles the things that travel together. The type parameter `S` is the observable blockchain state — it can be as simple as a single UTXO's datum, or as rich as all UTXOs at a script address plus balances at related addresses:
-
-```scala
-trait ContractStepVariations[S] {
-    def extractState(reader: BlockchainReader)(using ExecutionContext): Future[S]
-    def makeBaseTx(reader: BlockchainReader, state: S)(using ExecutionContext): Future[TxTemplate]
-    def variations: TxVariations[S]
-
-    // convenience — builds template and enumerates variations
-    def allVariations(reader: BlockchainReader, state: S)(using ExecutionContext): Future[Seq[Transaction]]
-
-    // slot delays to explore at this step (default: empty)
-    def slotDelays(state: S): Seq[Long] = Seq.empty
-
-    // all actions — combines Submit(tx) for each variation + Wait(slots) for each delay
-    def allActions(reader: BlockchainReader, state: S)(using ExecutionContext): Future[Seq[StepAction]]
-}
-```
-
-### StepAction
-
-`StepAction` is the universal step currency consumed by both `ScenarioExplorer` and `ContractScalaCheckCommands`:
+`ContractStepVariations` is a convenience helper, but the underlying interface consumed by `ScenarioExplorer` and `ContractScalaCheckCommands` is a plain function:
 
 ```scala
-sealed trait StepAction
-object StepAction {
-    case class Submit(tx: Transaction) extends StepAction
-    case class Wait(slots: Long) extends StepAction
-}
+step: BlockchainReader => Scenario[Unit]
 ```
 
-`allActions` returns `Submit` for each transaction variation plus `Wait` for each slot delay. This means time-dependent testing is configured on the step, not on the consumer.
-
-### Implementing a Step
-
-```scala
-object HtlcStep extends ContractStepVariations[HtlcState] {
-    def extractState(reader: BlockchainReader)(using ExecutionContext) = ...
-    def makeBaseTx(reader: BlockchainReader, state: HtlcState)(using ExecutionContext) = ...
-    def variations = TxVariations.standard.default[HtlcState](
-        extractUtxo = _.utxo,
-        extractDatum = s => s.utxo.output.requireInlineDatum,
-        redeemer = _ => HtlcRedeemer.Unlock.toData,
-        script = htlcScript
-    )
-
-    // Time-dependent: explore advancing 10 and 100 slots
-    override def slotDelays(state: HtlcState) = Seq(10L, 100L)
-}
-```
-
-Override individual methods via anonymous refinement:
-
-```scala
-// Extend with custom attack variation
-new HtlcStep {
-    override def variations =
-        super.variations ++ customAttackVariation
-}
-```
+You can implement this directly when you need full control over how actions are generated — for example, when the base-transaction-plus-variations pattern doesn't fit your use case.
 
 ## Complexity Control
 
