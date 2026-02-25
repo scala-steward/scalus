@@ -27,7 +27,7 @@ object SortedMap {
       *   SortedMap.empty.toList === List.empty
       *   }}}
       */
-    def empty[A, B]: SortedMap[A, B] = SortedMap(List.empty)
+    def empty[A, B]: SortedMap[A, B] = SortedMap(PairList.empty.toList)
 
     /** Constructs a `SortedMap` with a single key-value pair.
       *
