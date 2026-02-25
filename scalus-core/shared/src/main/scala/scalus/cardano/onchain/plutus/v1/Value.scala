@@ -3,7 +3,7 @@ package scalus.cardano.onchain.plutus.v1
 import scalus.cardano.ledger
 import scalus.cardano.ledger.{AssetName, Coin, Hash, MultiAsset}
 import scalus.cardano.onchain.plutus.prelude
-import scalus.cardano.onchain.plutus.prelude.{!==, <=>, ===, Eq, List, Option, Ord, Order, SortedMap}
+import scalus.cardano.onchain.plutus.prelude.{!==, <=>, ===, Eq, List, Option, Ord, Order, PairList, SortedMap}
 import scalus.compiler.{Compile, Ignore}
 import scalus.uplc.builtin.Builtins.*
 import scalus.uplc.builtin.Data.{fromData, toData}
@@ -39,7 +39,9 @@ object Value extends ValueOffchainOps {
       *   Value.zero.getLovelace === BigInt(0)
       *   }}}
       */
-    val zero: Value = Value(SortedMap.empty)
+    // Using PairList.PairNil.toList instead of List.Nil gives the compiler better type context
+    // for choosing the SumDataPairList representation, producing significantly cheaper UPLC.
+    val zero: Value = Value(SortedMap.unsafeFromList(PairList.PairNil.toList))
 
     /** Creates a `Value` containing the specified amount of a specific policy id and token. If the
       * amount is zero, it returns `Value.zero`.
