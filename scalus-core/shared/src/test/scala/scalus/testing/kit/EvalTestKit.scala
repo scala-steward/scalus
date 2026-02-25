@@ -36,7 +36,7 @@ trait EvalTestKit extends Assertions with ScalaCheckPropertyChecks with Arbitrar
     export org.scalacheck.{Arbitrary, Gen, Shrink}
     export scalus.cardano.onchain.plutus.prelude.{!==, <=>, ===}
 
-    given compilerOptions: Options = Options(
+    protected given compilerOptions: Options = Options(
       targetLoweringBackend = TargetLoweringBackend.SirToUplcV3Lowering,
       generateErrorTraces = true,
       optimizeUplc = true,
