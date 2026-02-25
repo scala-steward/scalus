@@ -5,12 +5,13 @@ import scalus.uplc.builtin.Data.{fromData, toData}
 import scalus.cardano.onchain.plutus.prelude.List.{Cons, Nil}
 import scalus.cardano.onchain.plutus.prelude.Option.{None, Some}
 import scalus.cardano.onchain.plutus.prelude.{asScalus, identity, Eq, List, Option, Ord, Order, SortedMap}
+import scalus.cardano.ledger.ExUnits
 import scalus.testing.kit.EvalTestKit
 
 class ListTest extends AnyFunSuite with EvalTestKit {
 
     test("empty") {
-        assertEvalEq(List.empty[BigInt], Nil)
+        assertEvalWithBudget(List.empty[BigInt], Nil, ExUnits(200, 16100))
 
         assert(scala.List.empty[BigInt].asScalus === List.empty[BigInt])
         assert(List.empty[BigInt].asScala == scala.List.empty[BigInt])
@@ -27,7 +28,7 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             ) && scalaResult.asScalus === scalusResult && scalusResult.asScala == scalaResult
         }
 
-        assertEvalEq(List.single(BigInt(1)), Cons(BigInt(1), Nil))
+        assertEvalWithBudget(List.single(BigInt(1)), Cons(BigInt(1), Nil), ExUnits(1632, 312462))
     }
 
     test("apply") {
@@ -38,16 +39,18 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalaResult.asScalus === scalusResult && scalusResult.asScala == scalaResult
         }
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List(BigInt(1), BigInt(2), BigInt(3)),
-          Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil)))
+          Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil))),
+          ExUnits(2496, 585186)
         )
     }
 
     test("apply list of pairs") {
-        assertEvalEq(
+        assertEvalWithBudget(
           List((BigInt(1), BigInt(2)), (BigInt(3), BigInt(4))),
-          Cons((BigInt(1), BigInt(2)), Cons((BigInt(3), BigInt(4)), Nil))
+          Cons((BigInt(1), BigInt(2)), Cons((BigInt(3), BigInt(4)), Nil)),
+          ExUnits(4656, 1166574)
         )
     }
 
@@ -80,9 +83,13 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             assert(scalusResult.asScala == scalaResult)
         }
 
-        assertEvalEq(List.range(0, 0), List.single(BigInt(0)))
-        assertEvalEq(List.range(1, 3), Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil))))
-        assertEvalEq(List.range(0, -1), List.empty[BigInt])
+        assertEvalWithBudget(List.range(0, 0), List.single(BigInt(0)), ExUnits(8702, 1804040))
+        assertEvalWithBudget(
+          List.range(1, 3),
+          Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil))),
+          ExUnits(16638, 3669550)
+        )
+        assertEvalWithBudget(List.range(0, -1), List.empty[BigInt], ExUnits(4734, 871285))
     }
 
     test("rangeUntil") {
@@ -94,10 +101,14 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             assert(scalusResult.asScala == scalaResult)
         }
 
-        assertEvalEq(List.rangeUntil(0, 1), List.single(BigInt(0)))
-        assertEvalEq(List.rangeUntil(1, 4), Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil))))
-        assertEvalEq(List.rangeUntil(0, 0), List.empty[BigInt])
-        assertEvalEq(List.rangeUntil(0, -1), List.empty[BigInt])
+        assertEvalWithBudget(List.rangeUntil(0, 1), List.single(BigInt(0)), ExUnits(8702, 1806946))
+        assertEvalWithBudget(
+          List.rangeUntil(1, 4),
+          Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil))),
+          ExUnits(16638, 3675362)
+        )
+        assertEvalWithBudget(List.rangeUntil(0, 0), List.empty[BigInt], ExUnits(4734, 872738))
+        assertEvalWithBudget(List.rangeUntil(0, -1), List.empty[BigInt], ExUnits(4734, 872738))
     }
 
     test("fill") {
@@ -115,16 +126,21 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             assert(scalusResult.asScala == scalaResult)
         }
 
-        assertEvalEq(List.fill(BigInt(1), 1), List.single(BigInt(1)))
-
-        assertEvalEq(
-          List.fill(BigInt(1), 3),
-          Cons(BigInt(1), Cons(BigInt(1), Cons(BigInt(1), Nil)))
+        assertEvalWithBudget(
+          List.fill(BigInt(1), 1),
+          List.single(BigInt(1)),
+          ExUnits(7638, 1616348)
         )
 
-        assertEvalEq(List.fill(BigInt(1), 0), List.empty[BigInt])
+        assertEvalWithBudget(
+          List.fill(BigInt(1), 3),
+          Cons(BigInt(1), Cons(BigInt(1), Cons(BigInt(1), Nil))),
+          ExUnits(14510, 3294166)
+        )
 
-        assertEvalEq(List.fill(BigInt(1), -1), List.empty[BigInt])
+        assertEvalWithBudget(List.fill(BigInt(1), 0), List.empty[BigInt], ExUnits(4202, 777439))
+
+        assertEvalWithBudget(List.fill(BigInt(1), -1), List.empty[BigInt], ExUnits(4202, 777439))
     }
 
     test("map2") {
@@ -140,21 +156,24 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             List.map2(List.empty[BigInt], list)(_ + _) === List.empty[BigInt]
         }
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.map2(Cons(BigInt(1), Cons(BigInt(2), Nil)), List.empty[BigInt])(_ + _),
-          List.empty[BigInt]
+          List.empty[BigInt],
+          ExUnits(6328, 1386812)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.map2(List.empty[BigInt], Cons(BigInt(3), Cons(BigInt(4), Nil)))(_ + _),
-          List.empty[BigInt]
+          List.empty[BigInt],
+          ExUnits(6196, 1237818)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.map2(Cons(BigInt(1), Cons(BigInt(2), Nil)), Cons(BigInt(3), Cons(BigInt(4), Nil)))(
             _ + _
           ),
-          Cons(BigInt(4), Cons(BigInt(6), Nil))
+          Cons(BigInt(4), Cons(BigInt(6), Nil)),
+          ExUnits(22504, 5530484)
         )
     }
 
@@ -166,19 +185,22 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             fromDataList === list
         }
 
-        assertEvalEq(
+        assertEvalWithBudget(
           fromData[List[BigInt]](List.empty[BigInt].toData),
-          List.empty[BigInt]
+          List.empty[BigInt],
+          ExUnits(3364, 571885)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           fromData[List[BigInt]](List.single(BigInt(1)).toData),
-          List.single(BigInt(1))
+          List.single(BigInt(1)),
+          ExUnits(4696, 852247)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           fromData[List[BigInt]](Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil))).toData),
-          Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil)))
+          Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil))),
+          ExUnits(4960, 1028971)
         )
     }
 
@@ -192,13 +214,14 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalusResult === scalaResult
         }
 
-        assertEvalEq(List.empty[BigInt], List.empty[BigInt])
+        assertEvalWithBudget(List.empty[BigInt], List.empty[BigInt], ExUnits(200, 16100))
 
-        assertEvalEq(List.single(BigInt(1)), List.single(BigInt(1)))
+        assertEvalWithBudget(List.single(BigInt(1)), List.single(BigInt(1)), ExUnits(1632, 312462))
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil))),
-          Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil)))
+          Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil))),
+          ExUnits(1896, 489186)
         )
 
         assertEvalNotEq(
@@ -270,13 +293,22 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalaResult.asScalus === scalusResult && scalusResult.asScala == scalaResult
         }
 
-        assertEvalEq(List.empty[BigInt].quicksort, List.empty[BigInt])
+        assertEvalWithBudget(
+          List.empty[BigInt].quicksort,
+          List.empty[BigInt],
+          ExUnits(7932, 1381094)
+        )
 
-        assertEvalEq(List.single(BigInt(1)).quicksort, List.single(BigInt(1)))
+        assertEvalWithBudget(
+          List.single(BigInt(1)).quicksort,
+          List.single(BigInt(1)),
+          ExUnits(30378, 6512226)
+        )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(3), Cons(BigInt(1), Cons(BigInt(2), Nil))).quicksort,
-          Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil)))
+          Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil))),
+          ExUnits(152079, 35603643)
         )
     }
 
@@ -295,19 +327,25 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalaResult.asScalus === scalusResult && scalusResult.asScala == scalaResult
         }
 
-        assertEvalEq(List.empty[List[BigInt]].flatten, List.empty[BigInt])
-
-        assertEvalEq(
-          List.single(Cons(BigInt(3), Cons(BigInt(1), Cons(BigInt(2), Nil)))).flatten,
-          Cons(BigInt(3), Cons(BigInt(1), Cons(BigInt(2), Nil)))
+        assertEvalWithBudget(
+          List.empty[List[BigInt]].flatten,
+          List.empty[BigInt],
+          ExUnits(7596, 1376879)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
+          List.single(Cons(BigInt(3), Cons(BigInt(1), Cons(BigInt(2), Nil)))).flatten,
+          Cons(BigInt(3), Cons(BigInt(1), Cons(BigInt(2), Nil))),
+          ExUnits(19882, 4272796)
+        )
+
+        assertEvalWithBudget(
           Cons[List[BigInt]](
             Cons(BigInt(1), Cons(BigInt(2), Nil)),
             List.single(List.single(BigInt(3)))
           ).flatten,
-          Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil)))
+          Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil))),
+          ExUnits(37260, 8608959)
         )
     }
 
@@ -364,14 +402,34 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             assert(scalusResult.asScala == scalaResult)
         }
 
-        assertEvalEq(List.empty[BigInt].get(0), None)
-        assertEvalEq(List.single(BigInt(1)).get(0), Some(BigInt(1)))
-        assertEvalEq(List.single(BigInt(1)).get(1), None)
-        assertEvalEq(List.single(BigInt(1)).get(-1), None)
-        assertEvalEq(Cons(BigInt(1), Cons(BigInt(2), Nil)).get(0), Some(BigInt(1)))
-        assertEvalEq(Cons(BigInt(1), Cons(BigInt(2), Nil)).get(1), Some(BigInt(2)))
-        assertEvalEq(Cons(BigInt(1), Cons(BigInt(2), Nil)).get(2), None)
-        assertEvalEq(Cons(BigInt(1), Cons(BigInt(2), Nil)).get(-1), None)
+        assertEvalWithBudget(List.empty[BigInt].get(0), None, ExUnits(7266, 1412584))
+        assertEvalWithBudget(
+          List.single(BigInt(1)).get(0),
+          Some(BigInt(1)),
+          ExUnits(10064, 2200840)
+        )
+        assertEvalWithBudget(List.single(BigInt(1)).get(1), None, ExUnits(12266, 2713193))
+        assertEvalWithBudget(List.single(BigInt(1)).get(-1), None, ExUnits(5766, 1111952))
+        assertEvalWithBudget(
+          Cons(BigInt(1), Cons(BigInt(2), Nil)).get(0),
+          Some(BigInt(1)),
+          ExUnits(9896, 2241202)
+        )
+        assertEvalWithBudget(
+          Cons(BigInt(1), Cons(BigInt(2), Nil)).get(1),
+          Some(BigInt(2)),
+          ExUnits(13864, 3309449)
+        )
+        assertEvalWithBudget(
+          Cons(BigInt(1), Cons(BigInt(2), Nil)).get(2),
+          None,
+          ExUnits(16066, 3821802)
+        )
+        assertEvalWithBudget(
+          Cons(BigInt(1), Cons(BigInt(2), Nil)).get(-1),
+          None,
+          ExUnits(5598, 1152314)
+        )
     }
 
     test("at") {
@@ -384,11 +442,19 @@ class ListTest extends AnyFunSuite with EvalTestKit {
         }
 
         assertEvalFails[NoSuchElementException](List.empty[BigInt].at(0))
-        assertEvalEq(List.single(BigInt(1)).at(0), BigInt(1))
+        assertEvalWithBudget(List.single(BigInt(1)).at(0), BigInt(1), ExUnits(14926, 3493591))
         assertEvalFails[NoSuchElementException](List.single(BigInt(1)).at(1))
         assertEvalFails[NoSuchElementException](List.single(BigInt(1)).at(-1))
-        assertEvalEq(Cons(BigInt(1), Cons(BigInt(2), Nil)).at(0), BigInt(1))
-        assertEvalEq(Cons(BigInt(1), Cons(BigInt(2), Nil)).at(1), BigInt(2))
+        assertEvalWithBudget(
+          Cons(BigInt(1), Cons(BigInt(2), Nil)).at(0),
+          BigInt(1),
+          ExUnits(14758, 3533953)
+        )
+        assertEvalWithBudget(
+          Cons(BigInt(1), Cons(BigInt(2), Nil)).at(1),
+          BigInt(2),
+          ExUnits(18726, 4602200)
+        )
         assertEvalFails[NoSuchElementException](Cons(BigInt(1), Cons(BigInt(2), Nil)).at(2))
         assertEvalFails[NoSuchElementException](Cons(BigInt(1), Cons(BigInt(2), Nil)).at(-1))
     }
@@ -403,11 +469,19 @@ class ListTest extends AnyFunSuite with EvalTestKit {
         }
 
         assertEvalFails[NoSuchElementException](List.empty[BigInt].!!(0))
-        assertEvalEq(List.single(BigInt(1)).!!(0), BigInt(1))
+        assertEvalWithBudget(List.single(BigInt(1)).!!(0), BigInt(1), ExUnits(15226, 3541591))
         assertEvalFails[NoSuchElementException](List.single(BigInt(1)).!!(1))
         assertEvalFails[NoSuchElementException](List.single(BigInt(1)).!!(-1))
-        assertEvalEq(Cons(BigInt(1), Cons(BigInt(2), Nil)).!!(0), BigInt(1))
-        assertEvalEq(Cons(BigInt(1), Cons(BigInt(2), Nil)).!!(1), BigInt(2))
+        assertEvalWithBudget(
+          Cons(BigInt(1), Cons(BigInt(2), Nil)).!!(0),
+          BigInt(1),
+          ExUnits(15058, 3581953)
+        )
+        assertEvalWithBudget(
+          Cons(BigInt(1), Cons(BigInt(2), Nil)).!!(1),
+          BigInt(2),
+          ExUnits(19026, 4650200)
+        )
         assertEvalFails[NoSuchElementException](Cons(BigInt(1), Cons(BigInt(2), Nil)).!!(2))
         assertEvalFails[NoSuchElementException](Cons(BigInt(1), Cons(BigInt(2), Nil)).!!(-1))
     }
@@ -441,21 +515,27 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             }
         }
 
-        assertEvalEq(List.empty[BigInt].groupBy(_ % 2), SortedMap.empty[BigInt, List[BigInt]])
-
-        assertEvalEq(
-          List.single(BigInt(1)).groupBy(_ % 2),
-          SortedMap.singleton(BigInt(1), List.single(BigInt(1)))
+        assertEvalWithBudget(
+          List.empty[BigInt].groupBy(_ % 2),
+          SortedMap.empty[BigInt, List[BigInt]],
+          ExUnits(16660, 3051203)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
+          List.single(BigInt(1)).groupBy(_ % 2),
+          SortedMap.singleton(BigInt(1), List.single(BigInt(1))),
+          ExUnits(67311, 15728460)
+        )
+
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).groupBy(_ % 2),
           SortedMap.unsafeFromList(
             Cons(
               (BigInt(0), List.single(BigInt(2))),
               Cons((BigInt(1), List.single(BigInt(1))), Nil)
             )
-          )
+          ),
+          ExUnits(129618, 31607493)
         )
 
     }
@@ -473,24 +553,27 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             }
         }
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.empty[BigInt].groupMap(_ % 2)(identity),
-          SortedMap.empty[BigInt, List[BigInt]]
+          SortedMap.empty[BigInt, List[BigInt]],
+          ExUnits(15760, 2907203)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.single(BigInt(1)).groupMap(_ % 2)(identity),
-          SortedMap.singleton(BigInt(1), List.single(BigInt(1)))
+          SortedMap.singleton(BigInt(1), List.single(BigInt(1))),
+          ExUnits(67475, 15780503)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).groupMap(_ % 2)(identity),
           SortedMap.unsafeFromList(
             Cons(
               (BigInt(0), List.single(BigInt(2))),
               Cons((BigInt(1), List.single(BigInt(1))), Nil)
             )
-          )
+          ),
+          ExUnits(130846, 31855579)
         )
     }
 
@@ -507,22 +590,25 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             }
         }
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.empty[BigInt].groupMapReduce(_ % 2)(identity)(_ + _),
-          SortedMap.empty[BigInt, BigInt]
+          SortedMap.empty[BigInt, BigInt],
+          ExUnits(10664, 1881340)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.single(BigInt(1)).groupMapReduce(_ % 2)(identity)(_ + _),
-          SortedMap.singleton(BigInt(1), BigInt(1))
+          SortedMap.singleton(BigInt(1), BigInt(1)),
+          ExUnits(30899, 6964490)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Cons(BigInt(4), Nil))))
               .groupMapReduce(_ % 2)(identity)(_ + _),
           SortedMap.unsafeFromList(
             Cons((BigInt(0), BigInt(6)), Cons((BigInt(1), BigInt(4)), Nil))
-          )
+          ),
+          ExUnits(165520, 43454724)
         )
     }
 
@@ -534,31 +620,40 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalaResult.asScalus === scalusResult && scalusResult.asScala == scalaResult
         }
 
-        assertEvalEq(List.empty[BigInt].zip(List.empty[BigInt]), List.empty[(BigInt, BigInt)])
+        assertEvalWithBudget(
+          List.empty[BigInt].zip(List.empty[BigInt]),
+          List.empty[(BigInt, BigInt)],
+          ExUnits(7732, 1349094)
+        )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.single(BigInt(1)).zip(List.empty[BigInt]),
-          List.empty[(BigInt, BigInt)]
+          List.empty[(BigInt, BigInt)],
+          ExUnits(9496, 1826450)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.empty[BigInt].zip(List.single(BigInt(1))),
-          List.empty[(BigInt, BigInt)]
+          List.empty[(BigInt, BigInt)],
+          ExUnits(8764, 1581456)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.single(BigInt(1)).zip(List.single(BigInt(2))),
-          List.single((BigInt(1), BigInt(2)))
+          List.single((BigInt(1), BigInt(2))),
+          ExUnits(26424, 6879120)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).zip(Cons(BigInt(3), Cons(BigInt(4), Nil))),
-          Cons((BigInt(1), BigInt(3)), Cons((BigInt(2), BigInt(4)), Nil))
+          Cons((BigInt(1), BigInt(3)), Cons((BigInt(2), BigInt(4)), Nil)),
+          ExUnits(53252, 15543215)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).zip(List.single(BigInt(3))),
-          List.single((BigInt(1), BigInt(3)))
+          List.single((BigInt(1), BigInt(3))),
+          ExUnits(27288, 7212476)
         )
     }
 
@@ -570,16 +665,22 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalaResult.asScalus === scalusResult && scalusResult.asScala == scalaResult
         }
 
-        assertEvalEq(List.empty[BigInt].prepended(BigInt(1)), List.single(BigInt(1)))
-
-        assertEvalEq(
-          List.single(BigInt(2)).prepended(BigInt(1)),
-          Cons(BigInt(1), Cons(BigInt(2), Nil))
+        assertEvalWithBudget(
+          List.empty[BigInt].prepended(BigInt(1)),
+          List.single(BigInt(1)),
+          ExUnits(1264, 263761)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
+          List.single(BigInt(2)).prepended(BigInt(1)),
+          Cons(BigInt(1), Cons(BigInt(2), Nil)),
+          ExUnits(2596, 544123)
+        )
+
+        assertEvalWithBudget(
           Cons(BigInt(2), Cons(BigInt(3), Nil)).prepended(BigInt(1)),
-          Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil)))
+          Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil))),
+          ExUnits(2428, 584485)
         )
     }
 
@@ -591,16 +692,22 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalaResult.asScalus === scalusResult && scalusResult.asScala == scalaResult
         }
 
-        assertEvalEq(BigInt(1) +: List.empty[BigInt], List.single(BigInt(1)))
-
-        assertEvalEq(
-          BigInt(1) +: List.single(BigInt(2)),
-          Cons(BigInt(1), Cons(BigInt(2), Nil))
+        assertEvalWithBudget(
+          BigInt(1) +: List.empty[BigInt],
+          List.single(BigInt(1)),
+          ExUnits(1264, 263761)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
+          BigInt(1) +: List.single(BigInt(2)),
+          Cons(BigInt(1), Cons(BigInt(2), Nil)),
+          ExUnits(2596, 544123)
+        )
+
+        assertEvalWithBudget(
           BigInt(1) +: Cons(BigInt(2), Cons(BigInt(3), Nil)),
-          Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil)))
+          Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil))),
+          ExUnits(2428, 584485)
         )
     }
 
@@ -612,26 +719,34 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalaResult.asScalus === scalusResult && scalusResult.asScala == scalaResult
         }
 
-        assertEvalEq(List.empty[BigInt].prependedAll(List.empty[BigInt]), List.empty[BigInt])
+        assertEvalWithBudget(
+          List.empty[BigInt].prependedAll(List.empty[BigInt]),
+          List.empty[BigInt],
+          ExUnits(6034, 1229192)
+        )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.empty[BigInt].prependedAll(List.single(BigInt(1))),
-          List.single(BigInt(1))
+          List.single(BigInt(1)),
+          ExUnits(7366, 1509554)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.single(BigInt(1)).prependedAll(List.empty[BigInt]),
-          List.single(BigInt(1))
+          List.single(BigInt(1)),
+          ExUnits(8398, 1802548)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.single(BigInt(2)).prependedAll(List.single(BigInt(1))),
-          Cons(BigInt(1), Cons(BigInt(2), Nil))
+          Cons(BigInt(1), Cons(BigInt(2), Nil)),
+          ExUnits(12258, 2837079)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(2), Cons(BigInt(3), Nil)).prependedAll(List.single(BigInt(1))),
-          Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil)))
+          Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil))),
+          ExUnits(12390, 2925441)
         )
     }
 
@@ -643,26 +758,34 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalaResult.asScalus === scalusResult && scalusResult.asScala == scalaResult
         }
 
-        assertEvalEq(List.empty[BigInt] ++: List.empty[BigInt], List.empty[BigInt])
+        assertEvalWithBudget(
+          List.empty[BigInt] ++: List.empty[BigInt],
+          List.empty[BigInt],
+          ExUnits(6034, 1229192)
+        )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.empty[BigInt] ++: List.single(BigInt(1)),
-          List.single(BigInt(1))
+          List.single(BigInt(1)),
+          ExUnits(8398, 1802548)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.single(BigInt(1)) ++: List.empty[BigInt],
-          List.single(BigInt(1))
+          List.single(BigInt(1)),
+          ExUnits(7366, 1509554)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.single(BigInt(1)) ++: List.single(BigInt(2)),
-          Cons(BigInt(1), Cons(BigInt(2), Nil))
+          Cons(BigInt(1), Cons(BigInt(2), Nil)),
+          ExUnits(12258, 2837079)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)) ++: List.single(BigInt(3)),
-          Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil)))
+          Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil))),
+          ExUnits(15218, 3727610)
         )
     }
 
@@ -674,16 +797,22 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalaResult.asScalus === scalusResult && scalusResult.asScala == scalaResult
         }
 
-        assertEvalEq(List.empty[BigInt].appended(BigInt(1)), List.single(BigInt(1)))
-
-        assertEvalEq(
-          List.single(BigInt(1)).appended(BigInt(2)),
-          Cons(BigInt(1), Cons(BigInt(2), Nil))
+        assertEvalWithBudget(
+          List.empty[BigInt].appended(BigInt(1)),
+          List.single(BigInt(1)),
+          ExUnits(5564, 1069456)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
+          List.single(BigInt(1)).appended(BigInt(2)),
+          Cons(BigInt(1), Cons(BigInt(2), Nil)),
+          ExUnits(9424, 2103987)
+        )
+
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).appended(BigInt(3)),
-          Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil)))
+          Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil))),
+          ExUnits(12684, 3042518)
         )
     }
 
@@ -695,16 +824,22 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalaResult.asScalus === scalusResult && scalusResult.asScala == scalaResult
         }
 
-        assertEvalEq(List.empty[BigInt] :+ BigInt(1), List.single(BigInt(1)))
-
-        assertEvalEq(
-          List.single(BigInt(1)) :+ BigInt(2),
-          Cons(BigInt(1), Cons(BigInt(2), Nil))
+        assertEvalWithBudget(
+          List.empty[BigInt] :+ BigInt(1),
+          List.single(BigInt(1)),
+          ExUnits(5796, 1116755)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
+          List.single(BigInt(1)) :+ BigInt(2),
+          Cons(BigInt(1), Cons(BigInt(2), Nil)),
+          ExUnits(9956, 2199286)
+        )
+
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)) :+ BigInt(3),
-          Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil)))
+          Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil))),
+          ExUnits(13216, 3137817)
         )
     }
 
@@ -716,26 +851,34 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalaResult.asScalus === scalusResult && scalusResult.asScala == scalaResult
         }
 
-        assertEvalEq(List.empty[BigInt].appendedAll(List.empty[BigInt]), List.empty[BigInt])
+        assertEvalWithBudget(
+          List.empty[BigInt].appendedAll(List.empty[BigInt]),
+          List.empty[BigInt],
+          ExUnits(6934, 1373192)
+        )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.empty[BigInt].appendedAll(List.single(BigInt(1))),
-          List.single(BigInt(1))
+          List.single(BigInt(1)),
+          ExUnits(8998, 1898548)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.single(BigInt(1)).appendedAll(List.empty[BigInt]),
-          List.single(BigInt(1))
+          List.single(BigInt(1)),
+          ExUnits(7966, 1605554)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.single(BigInt(1)).appendedAll(List.single(BigInt(2))),
-          Cons(BigInt(1), Cons(BigInt(2), Nil))
+          Cons(BigInt(1), Cons(BigInt(2), Nil)),
+          ExUnits(12558, 2885079)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).appendedAll(List.single(BigInt(3))),
-          Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil)))
+          Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil))),
+          ExUnits(15518, 3775610)
         )
     }
 
@@ -747,26 +890,34 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalaResult.asScalus === scalusResult && scalusResult.asScala == scalaResult
         }
 
-        assertEvalEq(List.empty[BigInt] :++ List.empty[BigInt], List.empty[BigInt])
+        assertEvalWithBudget(
+          List.empty[BigInt] :++ List.empty[BigInt],
+          List.empty[BigInt],
+          ExUnits(6934, 1373192)
+        )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.empty[BigInt] :++ List.single(BigInt(1)),
-          List.single(BigInt(1))
+          List.single(BigInt(1)),
+          ExUnits(9298, 1946548)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.single(BigInt(1)) :++ List.empty[BigInt],
-          List.single(BigInt(1))
+          List.single(BigInt(1)),
+          ExUnits(8266, 1653554)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.single(BigInt(1)) :++ List.single(BigInt(2)),
-          Cons(BigInt(1), Cons(BigInt(2), Nil))
+          Cons(BigInt(1), Cons(BigInt(2), Nil)),
+          ExUnits(13158, 2981079)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)) :++ List.single(BigInt(3)),
-          Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil)))
+          Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil))),
+          ExUnits(16118, 3871610)
         )
     }
 
@@ -778,26 +929,34 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalaResult.asScalus === scalusResult && scalusResult.asScala == scalaResult
         }
 
-        assertEvalEq(List.empty[BigInt].concat(List.empty[BigInt]), List.empty[BigInt])
+        assertEvalWithBudget(
+          List.empty[BigInt].concat(List.empty[BigInt]),
+          List.empty[BigInt],
+          ExUnits(6934, 1373192)
+        )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.empty[BigInt].concat(List.single(BigInt(1))),
-          List.single(BigInt(1))
+          List.single(BigInt(1)),
+          ExUnits(9298, 1946548)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.single(BigInt(1)).concat(List.empty[BigInt]),
-          List.single(BigInt(1))
+          List.single(BigInt(1)),
+          ExUnits(8266, 1653554)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.single(BigInt(1)).concat(List.single(BigInt(2))),
-          Cons(BigInt(1), Cons(BigInt(2), Nil))
+          Cons(BigInt(1), Cons(BigInt(2), Nil)),
+          ExUnits(13158, 2981079)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).concat(List.single(BigInt(3))),
-          Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil)))
+          Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil))),
+          ExUnits(16118, 3871610)
         )
     }
 
@@ -809,26 +968,34 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalaResult.asScalus === scalusResult && scalusResult.asScala == scalaResult
         }
 
-        assertEvalEq(List.empty[BigInt] ++ List.empty[BigInt], List.empty[BigInt])
+        assertEvalWithBudget(
+          List.empty[BigInt] ++ List.empty[BigInt],
+          List.empty[BigInt],
+          ExUnits(6934, 1373192)
+        )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.empty[BigInt] ++ List.single(BigInt(1)),
-          List.single(BigInt(1))
+          List.single(BigInt(1)),
+          ExUnits(9298, 1946548)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.single(BigInt(1)) ++ List.empty[BigInt],
-          List.single(BigInt(1))
+          List.single(BigInt(1)),
+          ExUnits(8266, 1653554)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.single(BigInt(1)) ++ List.single(BigInt(2)),
-          Cons(BigInt(1), Cons(BigInt(2), Nil))
+          Cons(BigInt(1), Cons(BigInt(2), Nil)),
+          ExUnits(13158, 2981079)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)) ++ List.single(BigInt(3)),
-          Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil)))
+          Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil))),
+          ExUnits(16118, 3871610)
         )
     }
 
@@ -840,16 +1007,22 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalaResult.asScalus === scalusResult && scalusResult.asScala == scalaResult
         }
 
-        assertEvalEq(List.empty[BigInt].map(_ + BigInt(1)), List.empty[BigInt])
-
-        assertEvalEq(
-          List.single(BigInt(1)).map(_ + BigInt(1)),
-          List.single(BigInt(2))
+        assertEvalWithBudget(
+          List.empty[BigInt].map(_ + BigInt(1)),
+          List.empty[BigInt],
+          ExUnits(7296, 1328879)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
+          List.single(BigInt(1)).map(_ + BigInt(1)),
+          List.single(BigInt(2)),
+          ExUnits(15386, 3216446)
+        )
+
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).map(_ + BigInt(1)),
-          Cons(BigInt(2), Cons(BigInt(3), Nil))
+          Cons(BigInt(2), Cons(BigInt(3), Nil)),
+          ExUnits(22276, 4912013)
         )
     }
 
@@ -861,31 +1034,36 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalaResult.asScalus === scalusResult && scalusResult.asScala == scalaResult
         }
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.empty[BigInt].flatMap(x => List.single(x + BigInt(1))),
-          List.empty[BigInt]
+          List.empty[BigInt],
+          ExUnits(8496, 1520879)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.single(BigInt(1)).flatMap(x => List.single(x + BigInt(1))),
-          List.single(BigInt(2))
+          List.single(BigInt(2)),
+          ExUnits(20920, 4381538)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).flatMap(x => List.single(x + BigInt(1))),
-          Cons(BigInt(2), Cons(BigInt(3), Nil))
+          Cons(BigInt(2), Cons(BigInt(3), Nil)),
+          ExUnits(36604, 8241360)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).flatMap(x => Nil),
-          List.empty[BigInt]
+          List.empty[BigInt],
+          ExUnits(29712, 6304459)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).flatMap(x =>
               Cons(x + BigInt(10), Cons(x + BigInt(100), Nil))
           ),
-          Cons(BigInt(11), Cons(BigInt(101), Cons(BigInt(12), Cons(BigInt(102), Nil))))
+          Cons(BigInt(11), Cons(BigInt(101), Cons(BigInt(12), Cons(BigInt(102), Nil)))),
+          ExUnits(40664, 9597267)
         )
     }
 
@@ -897,16 +1075,22 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalaResult.asScalus === scalusResult && scalusResult.asScala == scalaResult
         }
 
-        assertEvalEq(List.empty[BigInt].filter(_ > BigInt(1)), List.empty[BigInt])
-
-        assertEvalEq(
-          List.single(BigInt(1)).filter(_ > BigInt(1)),
-          List.empty[BigInt]
+        assertEvalWithBudget(
+          List.empty[BigInt].filter(_ > BigInt(1)),
+          List.empty[BigInt],
+          ExUnits(7796, 1408879)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
+          List.single(BigInt(1)).filter(_ > BigInt(1)),
+          List.empty[BigInt],
+          ExUnits(15422, 3164916)
+        )
+
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).filter(_ > BigInt(1)),
-          Cons(BigInt(2), Nil)
+          Cons(BigInt(2), Nil),
+          ExUnits(22280, 4865315)
         )
     }
 
@@ -918,16 +1102,22 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalaResult.asScalus === scalusResult && scalusResult.asScala == scalaResult
         }
 
-        assertEvalEq(List.empty[BigInt].filterNot(_ > BigInt(1)), List.empty[BigInt])
-
-        assertEvalEq(
-          List.single(BigInt(1)).filterNot(_ > BigInt(1)),
-          List.single(BigInt(1))
+        assertEvalWithBudget(
+          List.empty[BigInt].filterNot(_ > BigInt(1)),
+          List.empty[BigInt],
+          ExUnits(8996, 1600879)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
+          List.single(BigInt(1)).filterNot(_ > BigInt(1)),
+          List.single(BigInt(1)),
+          ExUnits(17855, 3697327)
+        )
+
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).filterNot(_ > BigInt(1)),
-          Cons(BigInt(1), Nil)
+          Cons(BigInt(1), Nil),
+          ExUnits(25082, 5465413)
         )
     }
 
@@ -941,22 +1131,25 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalaResult.asScalus === scalusResult && scalusResult.asScala == scalaResult
         }
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.empty[BigInt].filterMap(x => if x > BigInt(1) then Some(x + BigInt(1)) else None),
-          List.empty[BigInt]
+          List.empty[BigInt],
+          ExUnits(8396, 1504879)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.single(BigInt(1))
               .filterMap(x => if x > BigInt(1) then Some(x + BigInt(1)) else None),
-          List.empty[BigInt]
+          List.empty[BigInt],
+          ExUnits(18820, 4009932)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).filterMap(x =>
               if x > BigInt(1) then Some(x + BigInt(1)) else None
           ),
-          Cons(BigInt(3), Nil)
+          Cons(BigInt(3), Nil),
+          ExUnits(30006, 7097358)
         )
 
     }
@@ -969,16 +1162,18 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalaResult.asScalus === scalusResult && scalusResult.asScala == scalaResult
         }
 
-        assertEvalEq(List.empty[BigInt].find(_ > BigInt(1)), None)
+        assertEvalWithBudget(List.empty[BigInt].find(_ > BigInt(1)), None, ExUnits(5764, 1051245))
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.single(BigInt(1)).find(_ > BigInt(1)),
-          None
+          None,
+          ExUnits(11526, 2459497)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).find(_ > BigInt(1)),
-          Some(BigInt(2))
+          Some(BigInt(2)),
+          ExUnits(13688, 3232604)
         )
     }
 
@@ -990,22 +1185,25 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalaResult.asScalus === scalusResult && scalusResult.asScala == scalaResult
         }
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.empty[BigInt].findMap(x => if x > BigInt(1) then Some(x + BigInt(1)) else None),
-          None
+          None,
+          ExUnits(6264, 1131245)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.single(BigInt(1))
               .findMap(x => if x > BigInt(1) then Some(x + BigInt(1)) else None),
-          None
+          None,
+          ExUnits(16126, 3648611)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).findMap(x =>
               if x > BigInt(1) then Some(x + BigInt(1)) else None
           ),
-          Some(BigInt(3))
+          Some(BigInt(3)),
+          ExUnits(22358, 5542038)
         )
     }
 
@@ -1017,16 +1215,22 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalusResult === scalaResult
         }
 
-        assertEvalEq(List.empty[BigInt].foldLeft(BigInt(0))(_ + _), BigInt(0))
-
-        assertEvalEq(
-          List.single(BigInt(1)).foldLeft(BigInt(0))(_ + _),
-          BigInt(1)
+        assertEvalWithBudget(
+          List.empty[BigInt].foldLeft(BigInt(0))(_ + _),
+          BigInt(0),
+          ExUnits(4964, 921838)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
+          List.single(BigInt(1)).foldLeft(BigInt(0))(_ + _),
+          BigInt(1),
+          ExUnits(13590, 2794002)
+        )
+
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).foldLeft(BigInt(0))(_ + _),
-          BigInt(3)
+          BigInt(3),
+          ExUnits(20716, 4426166)
         )
     }
 
@@ -1038,16 +1242,22 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalusResult === scalaResult
         }
 
-        assertEvalEq(List.empty[BigInt].foldRight(BigInt(0))(_ + _), BigInt(0))
-
-        assertEvalEq(
-          List.single(BigInt(1)).foldRight(BigInt(0))(_ + _),
-          BigInt(1)
+        assertEvalWithBudget(
+          List.empty[BigInt].foldRight(BigInt(0))(_ + _),
+          BigInt(0),
+          ExUnits(4964, 921838)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
+          List.single(BigInt(1)).foldRight(BigInt(0))(_ + _),
+          BigInt(1),
+          ExUnits(11790, 2506002)
+        )
+
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).foldRight(BigInt(0))(_ + _),
-          BigInt(3)
+          BigInt(3),
+          ExUnits(17116, 3850166)
         )
     }
 
@@ -1089,11 +1299,31 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalusResult === scalaResult
         }
 
-        assertEvalEq(List.empty[BigInt].count(_ > BigInt(1)), BigInt(0))
-        assertEvalEq(List.single(BigInt(1)).count(_ > BigInt(0)), BigInt(1))
-        assertEvalEq(List.single(BigInt(1)).count(_ > BigInt(1)), BigInt(0))
-        assertEvalEq(Cons(BigInt(1), Cons(BigInt(2), Nil)).count(_ > BigInt(1)), BigInt(1))
-        assertEvalEq(Cons(BigInt(1), Cons(BigInt(2), Nil)).count(_ > BigInt(2)), BigInt(0))
+        assertEvalWithBudget(
+          List.empty[BigInt].count(_ > BigInt(1)),
+          BigInt(0),
+          ExUnits(6964, 1241838)
+        )
+        assertEvalWithBudget(
+          List.single(BigInt(1)).count(_ > BigInt(0)),
+          BigInt(1),
+          ExUnits(16792, 3427341)
+        )
+        assertEvalWithBudget(
+          List.single(BigInt(1)).count(_ > BigInt(1)),
+          BigInt(0),
+          ExUnits(16390, 3262133)
+        )
+        assertEvalWithBudget(
+          Cons(BigInt(1), Cons(BigInt(2), Nil)).count(_ > BigInt(1)),
+          BigInt(1),
+          ExUnits(24718, 5207636)
+        )
+        assertEvalWithBudget(
+          Cons(BigInt(1), Cons(BigInt(2), Nil)).count(_ > BigInt(2)),
+          BigInt(0),
+          ExUnits(24316, 5042428)
+        )
     }
 
     test("indexOfOption") {
@@ -1107,14 +1337,31 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalusResult === scalaResult
         }
 
-        assertEvalEq(List.empty[BigInt].indexOfOption(BigInt(1)), None)
-        assertEvalEq(List.single(BigInt(1)).indexOfOption(BigInt(1)), Some(BigInt(0)))
-        assertEvalEq(List.single(BigInt(1)).indexOfOption(BigInt(2)), None)
-        assertEvalEq(
-          Cons(BigInt(1), Cons(BigInt(2), Nil)).indexOfOption(BigInt(2)),
-          Some(BigInt(1))
+        assertEvalWithBudget(
+          List.empty[BigInt].indexOfOption(BigInt(1)),
+          None,
+          ExUnits(6664, 1195245)
         )
-        assertEvalEq(Cons(BigInt(1), Cons(BigInt(2), Nil)).indexOfOption(BigInt(3)), None)
+        assertEvalWithBudget(
+          List.single(BigInt(1)).indexOfOption(BigInt(1)),
+          Some(BigInt(0)),
+          ExUnits(11058, 2280288)
+        )
+        assertEvalWithBudget(
+          List.single(BigInt(1)).indexOfOption(BigInt(2)),
+          None,
+          ExUnits(13260, 2860492)
+        )
+        assertEvalWithBudget(
+          Cons(BigInt(1), Cons(BigInt(2), Nil)).indexOfOption(BigInt(2)),
+          Some(BigInt(1)),
+          ExUnits(16454, 3753535)
+        )
+        assertEvalWithBudget(
+          Cons(BigInt(1), Cons(BigInt(2), Nil)).indexOfOption(BigInt(3)),
+          None,
+          ExUnits(18656, 4333739)
+        )
     }
 
     test("indexOf") {
@@ -1125,18 +1372,35 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalusResult === scalaResult
         }
 
-        assertEvalEq(List.empty[BigInt].indexOf(BigInt(1)), BigInt(-1))
-
-        assertEvalEq(List.single(BigInt(1)).indexOf(BigInt(1)), BigInt(0))
-
-        assertEvalEq(List.single(BigInt(1)).indexOf(BigInt(2)), BigInt(-1))
-
-        assertEvalEq(
-          Cons(BigInt(1), Cons(BigInt(2), Nil)).indexOf(BigInt(2)),
-          BigInt(1)
+        assertEvalWithBudget(
+          List.empty[BigInt].indexOf(BigInt(1)),
+          BigInt(-1),
+          ExUnits(11562, 2278854)
         )
 
-        assertEvalEq(Cons(BigInt(1), Cons(BigInt(2), Nil)).indexOf(BigInt(3)), BigInt(-1))
+        assertEvalWithBudget(
+          List.single(BigInt(1)).indexOf(BigInt(1)),
+          BigInt(0),
+          ExUnits(16420, 3653039)
+        )
+
+        assertEvalWithBudget(
+          List.single(BigInt(1)).indexOf(BigInt(2)),
+          BigInt(-1),
+          ExUnits(18158, 3944101)
+        )
+
+        assertEvalWithBudget(
+          Cons(BigInt(1), Cons(BigInt(2), Nil)).indexOf(BigInt(2)),
+          BigInt(1),
+          ExUnits(21816, 5126286)
+        )
+
+        assertEvalWithBudget(
+          Cons(BigInt(1), Cons(BigInt(2), Nil)).indexOf(BigInt(3)),
+          BigInt(-1),
+          ExUnits(23554, 5417348)
+        )
     }
 
     test("lastOption") {
@@ -1147,11 +1411,19 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalaResult.asScalus === scalusResult && scalusResult.asScala == scalaResult
         }
 
-        assertEvalEq(List.empty[BigInt].lastOption, None)
+        assertEvalWithBudget(List.empty[BigInt].lastOption, None, ExUnits(5264, 971245))
 
-        assertEvalEq(List.single(BigInt(1)).lastOption, Some(BigInt(1)))
+        assertEvalWithBudget(
+          List.single(BigInt(1)).lastOption,
+          Some(BigInt(1)),
+          ExUnits(8925, 2049825)
+        )
 
-        assertEvalEq(Cons(BigInt(1), Cons(BigInt(2), Nil)).lastOption, Some(BigInt(2)))
+        assertEvalWithBudget(
+          Cons(BigInt(1), Cons(BigInt(2), Nil)).lastOption,
+          Some(BigInt(2)),
+          ExUnits(12886, 3235550)
+        )
     }
 
     test("last") {
@@ -1164,9 +1436,13 @@ class ListTest extends AnyFunSuite with EvalTestKit {
 
         assertEvalFails[NoSuchElementException](List.empty[BigInt].last)
 
-        assertEvalEq(List.single(BigInt(1)).last, BigInt(1))
+        assertEvalWithBudget(List.single(BigInt(1)).last, BigInt(1), ExUnits(13487, 3294576))
 
-        assertEvalEq(Cons(BigInt(1), Cons(BigInt(2), Nil)).last, BigInt(2))
+        assertEvalWithBudget(
+          Cons(BigInt(1), Cons(BigInt(2), Nil)).last,
+          BigInt(2),
+          ExUnits(17448, 4480301)
+        )
     }
 
     test("headOption") {
@@ -1177,11 +1453,19 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalaResult.asScalus === scalusResult && scalusResult.asScala == scalaResult
         }
 
-        assertEvalEq(List.empty[BigInt].headOption, None)
+        assertEvalWithBudget(List.empty[BigInt].headOption, None, ExUnits(3164, 635245))
 
-        assertEvalEq(List.single(BigInt(1)).headOption, Some(BigInt(1)))
+        assertEvalWithBudget(
+          List.single(BigInt(1)).headOption,
+          Some(BigInt(1)),
+          ExUnits(4860, 1119119)
+        )
 
-        assertEvalEq(Cons(BigInt(1), Cons(BigInt(2), Nil)).headOption, Some(BigInt(1)))
+        assertEvalWithBudget(
+          Cons(BigInt(1), Cons(BigInt(2), Nil)).headOption,
+          Some(BigInt(1)),
+          ExUnits(4692, 1159481)
+        )
     }
 
     test("head") {
@@ -1194,9 +1478,13 @@ class ListTest extends AnyFunSuite with EvalTestKit {
 
         assertEvalFails[NoSuchElementException](List.empty[BigInt].head)
 
-        assertEvalEq(List.single(BigInt(1)).head, BigInt(1))
+        assertEvalWithBudget(List.single(BigInt(1)).head, BigInt(1), ExUnits(9722, 2411870))
 
-        assertEvalEq(Cons(BigInt(1), Cons(BigInt(2), Nil)).head, BigInt(1))
+        assertEvalWithBudget(
+          Cons(BigInt(1), Cons(BigInt(2), Nil)).head,
+          BigInt(1),
+          ExUnits(1332, 264462)
+        )
     }
 
     test("length") {
@@ -1207,11 +1495,15 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalusResult === scalaResult
         }
 
-        assertEvalEq(List.empty[BigInt].length, BigInt(0))
+        assertEvalWithBudget(List.empty[BigInt].length, BigInt(0), ExUnits(5864, 1065838))
 
-        assertEvalEq(List.single(BigInt(1)).length, BigInt(1))
+        assertEvalWithBudget(List.single(BigInt(1)).length, BigInt(1), ExUnits(14258, 2885258))
 
-        assertEvalEq(Cons(BigInt(1), Cons(BigInt(2), Nil)).length, BigInt(2))
+        assertEvalWithBudget(
+          Cons(BigInt(1), Cons(BigInt(2), Nil)).length,
+          BigInt(2),
+          ExUnits(21152, 4464678)
+        )
     }
 
     test("size") {
@@ -1222,11 +1514,15 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalusResult === scalaResult
         }
 
-        assertEvalEq(List.empty[BigInt].size, BigInt(0))
+        assertEvalWithBudget(List.empty[BigInt].size, BigInt(0), ExUnits(5864, 1065838))
 
-        assertEvalEq(List.single(BigInt(1)).size, BigInt(1))
+        assertEvalWithBudget(List.single(BigInt(1)).size, BigInt(1), ExUnits(14258, 2885258))
 
-        assertEvalEq(Cons(BigInt(1), Cons(BigInt(2), Nil)).size, BigInt(2))
+        assertEvalWithBudget(
+          Cons(BigInt(1), Cons(BigInt(2), Nil)).size,
+          BigInt(2),
+          ExUnits(21152, 4464678)
+        )
     }
 
     test("tail") {
@@ -1238,8 +1534,12 @@ class ListTest extends AnyFunSuite with EvalTestKit {
         }
 
         assertEvalFails[NoSuchElementException](List.empty[BigInt].tail)
-        assertEvalEq(List.single(BigInt(1)).tail, List.empty[BigInt])
-        assertEvalEq(Cons(BigInt(1), Cons(BigInt(2), Nil)).tail, Cons(BigInt(2), Nil))
+        assertEvalWithBudget(List.single(BigInt(1)).tail, List.empty[BigInt], ExUnits(4296, 943119))
+        assertEvalWithBudget(
+          Cons(BigInt(1), Cons(BigInt(2), Nil)).tail,
+          Cons(BigInt(2), Nil),
+          ExUnits(1032, 216462)
+        )
     }
 
     test("drop") {
@@ -1251,22 +1551,40 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             assert(scalusResult.asScala == scalaResult)
         }
 
-        assertEvalEq(List.empty[BigInt].drop(BigInt(1)), List.empty[BigInt])
-
-        assertEvalEq(List.single(BigInt(1)).drop(BigInt(1)), List.empty[BigInt])
-
-        assertEvalEq(Cons(BigInt(1), Cons(BigInt(2), Nil)).drop(BigInt(1)), Cons(BigInt(2), Nil))
-
-        assertEvalEq(Cons(BigInt(1), Cons(BigInt(2), Nil)).drop(BigInt(2)), List.empty[BigInt])
-
-        assertEvalEq(
-          Cons(BigInt(1), Cons(BigInt(2), Nil)).drop(BigInt(0)),
-          Cons(BigInt(1), Cons(BigInt(2), Nil))
+        assertEvalWithBudget(
+          List.empty[BigInt].drop(BigInt(1)),
+          List.empty[BigInt],
+          ExUnits(5334, 1084980)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
+          List.single(BigInt(1)).drop(BigInt(1)),
+          List.empty[BigInt],
+          ExUnits(9902, 2180099)
+        )
+
+        assertEvalWithBudget(
+          Cons(BigInt(1), Cons(BigInt(2), Nil)).drop(BigInt(1)),
+          Cons(BigInt(2), Nil),
+          ExUnits(9734, 2220461)
+        )
+
+        assertEvalWithBudget(
+          Cons(BigInt(1), Cons(BigInt(2), Nil)).drop(BigInt(2)),
+          List.empty[BigInt],
+          ExUnits(13702, 3280212)
+        )
+
+        assertEvalWithBudget(
+          Cons(BigInt(1), Cons(BigInt(2), Nil)).drop(BigInt(0)),
+          Cons(BigInt(1), Cons(BigInt(2), Nil)),
+          ExUnits(5766, 1160710)
+        )
+
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).drop(BigInt(-1)),
-          Cons(BigInt(1), Cons(BigInt(2), Nil))
+          Cons(BigInt(1), Cons(BigInt(2), Nil)),
+          ExUnits(5766, 1160710)
         )
     }
 
@@ -1279,25 +1597,40 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             assert(scalusResult.asScala == scalaResult)
         }
 
-        assertEvalEq(List.empty[BigInt].dropRight(BigInt(1)), List.empty[BigInt])
+        assertEvalWithBudget(
+          List.empty[BigInt].dropRight(BigInt(1)),
+          List.empty[BigInt],
+          ExUnits(11322, 2488669)
+        )
 
-        assertEvalEq(List.single(BigInt(1)).dropRight(BigInt(1)), List.empty[BigInt])
+        assertEvalWithBudget(
+          List.single(BigInt(1)).dropRight(BigInt(1)),
+          List.empty[BigInt],
+          ExUnits(22170, 5483105)
+        )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).dropRight(BigInt(1)),
-          Cons(BigInt(1), Nil)
+          Cons(BigInt(1), Nil),
+          ExUnits(31848, 8329735)
         )
 
-        assertEvalEq(Cons(BigInt(1), Cons(BigInt(2), Nil)).dropRight(BigInt(2)), List.empty[BigInt])
+        assertEvalWithBudget(
+          Cons(BigInt(1), Cons(BigInt(2), Nil)).dropRight(BigInt(2)),
+          List.empty[BigInt],
+          ExUnits(31818, 8285541)
+        )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).dropRight(BigInt(0)),
-          Cons(BigInt(1), Cons(BigInt(2), Nil))
+          Cons(BigInt(1), Cons(BigInt(2), Nil)),
+          ExUnits(6766, 1320710)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).dropRight(BigInt(-1)),
-          Cons(BigInt(1), Cons(BigInt(2), Nil))
+          Cons(BigInt(1), Cons(BigInt(2), Nil)),
+          ExUnits(6766, 1320710)
         )
     }
 
@@ -1309,23 +1642,34 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalaResult.asScalus === scalusResult && scalusResult.asScala == scalaResult
         }
 
-        assertEvalEq(List.empty[BigInt].dropWhile(_ < BigInt(1)), List.empty[BigInt])
+        assertEvalWithBudget(
+          List.empty[BigInt].dropWhile(_ < BigInt(1)),
+          List.empty[BigInt],
+          ExUnits(4832, 885094)
+        )
 
-        assertEvalEq(List.single(BigInt(1)).dropWhile(_ < BigInt(1)), List.single(BigInt(1)))
+        assertEvalWithBudget(
+          List.single(BigInt(1)).dropWhile(_ < BigInt(1)),
+          List.single(BigInt(1)),
+          ExUnits(8330, 1726689)
+        )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).dropWhile(_ < BigInt(3)),
-          List.empty[BigInt]
+          List.empty[BigInt],
+          ExUnits(16456, 3717598)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).dropWhile(_ < BigInt(2)),
-          Cons(BigInt(2), Nil)
+          Cons(BigInt(2), Nil),
+          ExUnits(13392, 3022941)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).dropWhile(_ < BigInt(1)),
-          Cons(BigInt(1), Cons(BigInt(2), Nil))
+          Cons(BigInt(1), Cons(BigInt(2), Nil)),
+          ExUnits(8162, 1767051)
         )
     }
 
@@ -1341,28 +1685,40 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalaResult.asScalus === scalusResult && scalusResult.asScala == scalaResult
         }
 
-        assertEvalEq(List.empty[BigInt].deleteFirst(BigInt(1)), List.empty[BigInt])
+        assertEvalWithBudget(
+          List.empty[BigInt].deleteFirst(BigInt(1)),
+          List.empty[BigInt],
+          ExUnits(5932, 1061094)
+        )
 
-        assertEvalEq(List.single(BigInt(1)).deleteFirst(BigInt(1)), List.empty[BigInt])
+        assertEvalWithBudget(
+          List.single(BigInt(1)).deleteFirst(BigInt(1)),
+          List.empty[BigInt],
+          ExUnits(9894, 2076139)
+        )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).deleteFirst(BigInt(1)),
-          Cons(BigInt(2), Nil)
+          Cons(BigInt(2), Nil),
+          ExUnits(9726, 2116501)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).deleteFirst(BigInt(3)),
-          Cons(BigInt(1), Cons(BigInt(2), Nil))
+          Cons(BigInt(1), Cons(BigInt(2), Nil)),
+          ExUnits(17848, 4276196)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).deleteFirst(BigInt(2)),
-          List.single(BigInt(1))
+          List.single(BigInt(1)),
+          ExUnits(15252, 3587690)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(1), Nil)).deleteFirst(BigInt(1)),
-          List.single(BigInt(1))
+          List.single(BigInt(1)),
+          ExUnits(9726, 2116501)
         )
     }
 
@@ -1375,28 +1731,40 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             assert(scalusResult.asScala == scalaResult)
         }
 
-        assertEvalEq(List.empty[BigInt].take(BigInt(1)), List.empty[BigInt])
+        assertEvalWithBudget(
+          List.empty[BigInt].take(BigInt(1)),
+          List.empty[BigInt],
+          ExUnits(5934, 1180980)
+        )
 
-        assertEvalEq(List.single(BigInt(1)).take(BigInt(1)), List.single(BigInt(1)))
+        assertEvalWithBudget(
+          List.single(BigInt(1)).take(BigInt(1)),
+          List.single(BigInt(1)),
+          ExUnits(10866, 2479611)
+        )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).take(BigInt(1)),
-          Cons(BigInt(1), Nil)
+          Cons(BigInt(1), Nil),
+          ExUnits(10698, 2519973)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).take(BigInt(3)),
-          Cons(BigInt(1), Cons(BigInt(2), Nil))
+          Cons(BigInt(1), Cons(BigInt(2), Nil)),
+          ExUnits(16062, 4076230)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).take(BigInt(0)),
-          List.empty[BigInt]
+          List.empty[BigInt],
+          ExUnits(6066, 1208710)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).take(BigInt(-1)),
-          List.empty[BigInt]
+          List.empty[BigInt],
+          ExUnits(6066, 1208710)
         )
     }
 
@@ -1409,28 +1777,40 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             assert(scalusResult.asScala == scalaResult)
         }
 
-        assertEvalEq(List.empty[BigInt].takeRight(BigInt(1)), List.empty[BigInt])
+        assertEvalWithBudget(
+          List.empty[BigInt].takeRight(BigInt(1)),
+          List.empty[BigInt],
+          ExUnits(10790, 2393370)
+        )
 
-        assertEvalEq(List.single(BigInt(1)).takeRight(BigInt(1)), List.single(BigInt(1)))
+        assertEvalWithBudget(
+          List.single(BigInt(1)).takeRight(BigInt(1)),
+          List.single(BigInt(1)),
+          ExUnits(22534, 5695798)
+        )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).takeRight(BigInt(1)),
-          Cons(BigInt(2), Nil)
+          Cons(BigInt(2), Nil),
+          ExUnits(29756, 7664141)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).takeRight(BigInt(3)),
-          Cons(BigInt(1), Cons(BigInt(2), Nil))
+          Cons(BigInt(1), Cons(BigInt(2), Nil)),
+          ExUnits(33078, 8806226)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).takeRight(BigInt(0)),
-          List.empty[BigInt]
+          List.empty[BigInt],
+          ExUnits(6766, 1320710)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).takeRight(BigInt(-1)),
-          List.empty[BigInt]
+          List.empty[BigInt],
+          ExUnits(6766, 1320710)
         )
     }
 
@@ -1442,23 +1822,34 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalaResult.asScalus === scalusResult && scalusResult.asScala == scalaResult
         }
 
-        assertEvalEq(List.empty[BigInt].takeWhile(_ < BigInt(1)), List.empty[BigInt])
+        assertEvalWithBudget(
+          List.empty[BigInt].takeWhile(_ < BigInt(1)),
+          List.empty[BigInt],
+          ExUnits(5132, 933094)
+        )
 
-        assertEvalEq(List.single(BigInt(1)).takeWhile(_ < BigInt(1)), List.empty[BigInt])
+        assertEvalWithBudget(
+          List.single(BigInt(1)).takeWhile(_ < BigInt(1)),
+          List.empty[BigInt],
+          ExUnits(8330, 1726689)
+        )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).takeWhile(_ < BigInt(3)),
-          Cons(BigInt(1), Cons(BigInt(2), Nil))
+          Cons(BigInt(1), Cons(BigInt(2), Nil)),
+          ExUnits(17784, 4220622)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).takeWhile(_ < BigInt(2)),
-          List.single(BigInt(1))
+          List.single(BigInt(1)),
+          ExUnits(14056, 3274453)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).takeWhile(_ < BigInt(1)),
-          List.empty[BigInt]
+          List.empty[BigInt],
+          ExUnits(8162, 1767051)
         )
     }
 
@@ -1470,23 +1861,34 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalaResult.asScalus === scalusResult && scalusResult.asScala == scalaResult
         }
 
-        assertEvalEq(List.empty[BigInt].distinct, List.empty[BigInt])
+        assertEvalWithBudget(
+          List.empty[BigInt].distinct,
+          List.empty[BigInt],
+          ExUnits(13292, 2465658)
+        )
 
-        assertEvalEq(List.single(BigInt(1)).distinct, List.single(BigInt(1)))
+        assertEvalWithBudget(
+          List.single(BigInt(1)).distinct,
+          List.single(BigInt(1)),
+          ExUnits(33740, 7184036)
+        )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).distinct,
-          Cons(BigInt(1), Cons(BigInt(2), Nil))
+          Cons(BigInt(1), Cons(BigInt(2), Nil)),
+          ExUnits(59050, 13122091)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(1), Nil)).distinct,
-          List.single(BigInt(1))
+          List.single(BigInt(1)),
+          ExUnits(49426, 11056630)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(1), Nil))).distinct,
-          Cons(BigInt(1), Cons(BigInt(2), Nil))
+          Cons(BigInt(1), Cons(BigInt(2), Nil)),
+          ExUnits(81398, 18502362)
         )
     }
 
@@ -1498,31 +1900,40 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalaResult.asScalus === scalusResult && scalusResult.asScala == scalaResult
         }
 
-        assertEvalEq(List.empty[BigInt].diff(List.empty[BigInt]), List.empty[BigInt])
+        assertEvalWithBudget(
+          List.empty[BigInt].diff(List.empty[BigInt]),
+          List.empty[BigInt],
+          ExUnits(6933, 1297143)
+        )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.single(BigInt(1)).diff(List.empty[BigInt]),
-          List.single(BigInt(1))
+          List.single(BigInt(1)),
+          ExUnits(8697, 1774499)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.empty[BigInt].diff(List.single(BigInt(1))),
-          List.empty[BigInt]
+          List.empty[BigInt],
+          ExUnits(8265, 1577505)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           List.single(BigInt(1)).diff(List.single(BigInt(1))),
-          List.empty[BigInt]
+          List.empty[BigInt],
+          ExUnits(20488, 4528394)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).diff(List.single(BigInt(2))),
-          Cons(BigInt(1), Nil)
+          Cons(BigInt(1), Nil),
+          ExUnits(26878, 6332939)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).diff(List.single(BigInt(3))),
-          Cons(BigInt(1), Cons(BigInt(2), Nil))
+          Cons(BigInt(1), Cons(BigInt(2), Nil)),
+          ExUnits(29474, 7021445)
         )
     }
 
@@ -1536,9 +1947,17 @@ class ListTest extends AnyFunSuite with EvalTestKit {
 
         assertEvalFails[NoSuchElementException](List.empty[BigInt].init)
 
-        assertEvalEq(List.single(BigInt(1)).init, List.empty[BigInt])
+        assertEvalWithBudget(
+          List.single(BigInt(1)).init,
+          List.empty[BigInt],
+          ExUnits(24803, 6108148)
+        )
 
-        assertEvalEq(Cons(BigInt(1), Cons(BigInt(2), Nil)).init, Cons(BigInt(1), Nil))
+        assertEvalWithBudget(
+          Cons(BigInt(1), Cons(BigInt(2), Nil)).init,
+          Cons(BigInt(1), Nil),
+          ExUnits(34481, 8954778)
+        )
     }
 
     test("reverse") {
@@ -1549,18 +1968,24 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalaResult.asScalus === scalusResult && scalusResult.asScala == scalaResult
         }
 
-        assertEvalEq(List.empty[BigInt].reverse, List.empty[BigInt])
+        assertEvalWithBudget(List.empty[BigInt].reverse, List.empty[BigInt], ExUnits(6696, 1232879))
 
-        assertEvalEq(List.single(BigInt(1)).reverse, List.single(BigInt(1)))
-
-        assertEvalEq(
-          Cons(BigInt(1), Cons(BigInt(2), Nil)).reverse,
-          Cons(BigInt(2), Cons(BigInt(1), Nil))
+        assertEvalWithBudget(
+          List.single(BigInt(1)).reverse,
+          List.single(BigInt(1)),
+          ExUnits(14520, 2951195)
         )
 
-        assertEvalEq(
+        assertEvalWithBudget(
+          Cons(BigInt(1), Cons(BigInt(2), Nil)).reverse,
+          Cons(BigInt(2), Cons(BigInt(1), Nil)),
+          ExUnits(21144, 4477511)
+        )
+
+        assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Cons(BigInt(3), Nil))).reverse,
-          Cons(BigInt(3), Cons(BigInt(2), Cons(BigInt(1), Nil)))
+          Cons(BigInt(3), Cons(BigInt(2), Cons(BigInt(1), Nil))),
+          ExUnits(28368, 6099827)
         )
     }
 
@@ -1575,11 +2000,19 @@ class ListTest extends AnyFunSuite with EvalTestKit {
             scalusSum === scalaSum
         }
 
-        assertEvalEq(List.empty[BigInt].foreach(_ + BigInt(1)), ())
+        assertEvalWithBudget(List.empty[BigInt].foreach(_ + BigInt(1)), (), ExUnits(4532, 837094))
 
-        assertEvalEq(List.single(BigInt(1)).foreach(_ + BigInt(1)), ())
+        assertEvalWithBudget(
+          List.single(BigInt(1)).foreach(_ + BigInt(1)),
+          (),
+          ExUnits(10994, 2337215)
+        )
 
-        assertEvalEq(Cons(BigInt(1), Cons(BigInt(2), Nil)).foreach(_ + BigInt(1)), ())
+        assertEvalWithBudget(
+          Cons(BigInt(1), Cons(BigInt(2), Nil)).foreach(_ + BigInt(1)),
+          (),
+          ExUnits(15956, 3597336)
+        )
     }
 
     test("asScala/asScalus") {
