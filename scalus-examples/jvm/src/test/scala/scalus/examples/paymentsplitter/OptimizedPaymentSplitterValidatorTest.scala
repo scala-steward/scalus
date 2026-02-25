@@ -29,8 +29,14 @@ class OptimizedPaymentSplitterValidatorTest
         356300,
         100_950225
       ),
-      "success when payments are correctly split between 2 payees" -> ExUnits(memory = 501857, steps = 141_128280),
-      "success when payments are correctly split between 3 payees" -> ExUnits(memory = 658736, steps = 184_534139),
+      "success when payments are correctly split between 2 payees" -> ExUnits(
+        memory = 501857,
+        steps = 141_128280
+      ),
+      "success when payments are correctly split between 3 payees" -> ExUnits(
+        memory = 658736,
+        steps = 184_534139
+      ),
       "success when split equally and remainder compensates fee - o1" -> ExUnits(
         658736,
         184_534139

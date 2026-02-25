@@ -26,9 +26,18 @@ class NaivePaymentSplitterValidatorTest
     private val scriptHash = contract.script.scriptHash
 
     private val expectedBudgets: Map[String, ExUnits] = Map(
-      "success when payments are correctly split for a single payee" -> ExUnits(memory = 435687, steps = 124_202594),
-      "success when payments are correctly split between 2 payees" -> ExUnits(memory = 711128, steps = 204_616774),
-      "success when payments are correctly split between 3 payees" -> ExUnits(memory = 1_064883, steps = 309_973308),
+      "success when payments are correctly split for a single payee" -> ExUnits(
+        memory = 435687,
+        steps = 124_202594
+      ),
+      "success when payments are correctly split between 2 payees" -> ExUnits(
+        memory = 711128,
+        steps = 204_616774
+      ),
+      "success when payments are correctly split between 3 payees" -> ExUnits(
+        memory = 1_064883,
+        steps = 309_973308
+      ),
       "success when split equally and remainder compensates fee - o1" -> ExUnits(
         1_064883,
         309_973308
