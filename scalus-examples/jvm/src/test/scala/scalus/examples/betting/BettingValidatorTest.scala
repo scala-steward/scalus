@@ -85,7 +85,7 @@ class BettingValidatorTest extends AnyFunSuite, ScalusTest:
             result.logs.foreach(println)
             println(result)
         assert(result.isSuccess, "Script execution should succeed for initial minting")
-        assert(result.budget == ExUnits(memory = 157597, steps = 46_681917))
+        assert(result.budget == ExUnits(memory = 157297, steps = 46_633917))
 
     test("Verify that player2 can join an existing bet"):
         val player1 = TestUtil.mockPubKeyHash(1)
@@ -158,7 +158,7 @@ class BettingValidatorTest extends AnyFunSuite, ScalusTest:
             result.logs.foreach(println)
             println(result)
         assert(result.isSuccess, "Script execution should succeed for player2 joining spending")
-        assert(result.budget == ExUnits(memory = 469532, steps = 140_650944))
+        assert(result.budget == ExUnits(memory = 469232, steps = 140_602944))
 
     test("Verify that the oracle can announce winner and trigger payout"):
         val player1 = TestUtil.mockPubKeyHash(1)
@@ -222,4 +222,4 @@ class BettingValidatorTest extends AnyFunSuite, ScalusTest:
             result.logs.foreach(println)
             println(result)
         assert(result.isSuccess, "Script execution should succeed for announce winner spending")
-        assert(result.budget == ExUnits(memory = 355601, steps = 107_667283))
+        assert(result.budget == ExUnits(memory = 351507, steps = 106_428763))

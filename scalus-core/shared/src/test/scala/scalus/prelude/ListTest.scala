@@ -461,19 +461,19 @@ class ListTest extends AnyFunSuite with EvalTestKit {
         assertEvalWithBudget(
           List.single(BigInt(1)).at(0),
           BigInt(1),
-          ExUnits(memory = 14558, steps = 3_444890)
+          ExUnits(memory = 9664, steps = 2_078370)
         )
         assertEvalFails[NoSuchElementException](List.single(BigInt(1)).at(1))
         assertEvalFails[NoSuchElementException](List.single(BigInt(1)).at(-1))
         assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).at(0),
           BigInt(1),
-          ExUnits(14758, 3533953)
+          ExUnits(memory = 9864, steps = 2_167433)
         )
         assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).at(1),
           BigInt(2),
-          ExUnits(18726, 4602200)
+          ExUnits(memory = 13832, steps = 3_235680)
         )
         assertEvalFails[NoSuchElementException](Cons(BigInt(1), Cons(BigInt(2), Nil)).at(2))
         assertEvalFails[NoSuchElementException](Cons(BigInt(1), Cons(BigInt(2), Nil)).at(-1))
@@ -492,19 +492,19 @@ class ListTest extends AnyFunSuite with EvalTestKit {
         assertEvalWithBudget(
           List.single(BigInt(1)).!!(0),
           BigInt(1),
-          ExUnits(memory = 14858, steps = 3_492890)
+          ExUnits(memory = 9964, steps = 2_126370)
         )
         assertEvalFails[NoSuchElementException](List.single(BigInt(1)).!!(1))
         assertEvalFails[NoSuchElementException](List.single(BigInt(1)).!!(-1))
         assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).!!(0),
           BigInt(1),
-          ExUnits(15058, 3581953)
+          ExUnits(memory = 10164, steps = 2_215433)
         )
         assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).!!(1),
           BigInt(2),
-          ExUnits(19026, 4650200)
+          ExUnits(memory = 14132, steps = 3_283680)
         )
         assertEvalFails[NoSuchElementException](Cons(BigInt(1), Cons(BigInt(2), Nil)).!!(2))
         assertEvalFails[NoSuchElementException](Cons(BigInt(1), Cons(BigInt(2), Nil)).!!(-1))

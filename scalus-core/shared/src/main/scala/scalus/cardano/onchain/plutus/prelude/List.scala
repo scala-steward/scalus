@@ -410,7 +410,19 @@ object List {
           *   list.at(BigInt(-1)) // throws NoSuchElementException
           *   }}}
           */
-        def at(index: BigInt): A = get(index).getOrFail("Index out of bounds in List.at")
+        def at(index: BigInt): A = {
+            val msg = "Index out of bounds in List.at"
+            if index < 0 then throw new NoSuchElementException(msg)
+            else
+                @tailrec
+                def go(lst: List[A], currentIndex: BigInt): A = lst match
+                    case Nil => throw new NoSuchElementException(msg)
+                    case Cons(head, tail) =>
+                        if currentIndex == index then head
+                        else go(tail, currentIndex + 1)
+
+                go(self, 0)
+        }
 
         /** Retrieves the element at the specified index in the list.
           *
