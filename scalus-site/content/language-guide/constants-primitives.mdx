@@ -22,9 +22,9 @@ The following table shows how primitive types map between Plutus, Scalus, and Ai
 | `data`                 | `Data`                 | `Data`             |
 | `list`                 | `List[A]`              | `List<a>`          |
 | `pair`                 | `Pair[A, B]`           | `Pair<a, b>`       |
-| `BLS12_381_G1_Element` | `BLS12_381_G1_Element` | `G1Element`        |
-| `BLS12_381_G2_Element` | `BLS12_381_G2_Element` | `G2Element`        |
-| `BLS12_381_MlResult`   | `BLS12_381_MlResult`   | `MillerLoopResult` |
+| `BLS12_381_G1_Element` | `G1Element`            | `G1Element`        |
+| `BLS12_381_G2_Element` | `G2Element`            | `G2Element`        |
+| `BLS12_381_MlResult`   | `MLResult`             | `MillerLoopResult` |
 
 Scalus leverages Scala's native types for `Unit`, `Boolean`, `BigInt`, and `String`, providing a familiar programming experience. For blockchain-specific types, Scalus offers custom implementations with convenient constructors and utility methods.
 
