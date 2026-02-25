@@ -2005,8 +2005,8 @@ case class TxBuilder(
       * traces and replay the failing evaluation, producing diagnostic logs.
       *
       * This is automatically called by the `spend`, `mint`, `payTo`, and `references` overloads
-      * that accept [[CompiledPlutus]]. Use this method directly for other use cases where you
-      * want diagnostic replay.
+      * that accept [[CompiledPlutus]]. Use this method directly for other use cases where you want
+      * diagnostic replay.
       *
       * '''Migration note:''' If you previously used `validator.script` (a `PlutusScript`) with
       * `spend` or `mint`, pass `validator` (a `CompiledPlutus`) directly instead to enable
