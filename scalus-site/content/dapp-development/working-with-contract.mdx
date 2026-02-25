@@ -7,18 +7,17 @@ sidebarTitle: Working with Contract
 
 In this guide we cover how to compile your Scalus validators and integrate them with off-chain applications.
 
-## What is a Contract?
+## Compilation Pipeline
 
-A `Contract` is a wrapper around your validator that provides:
-- **Multiple compilation variants** (debug, default, release)
-- **Type-safe datum and redeemer schemas**
-- **Automatic blueprint generation** (CIP-57)
-- **Metadata and documentation**
-- **Easy access to script and address**
+Scalus compiles your validator code through this pipeline:
 
-## Creating a Contract
+```
+Scala Source → SIR (compiler plugin) → UPLC → Plutus Script
+```
 
-Let's walk through creating a contract for a Hash Time-Locked Contract (HTLC).
+The result is a `PlutusV3[A]` (or `PlutusV1[A]`, `PlutusV2[A]`) object that wraps the compiled script and provides access to the program, script hash, and address.
+
+## Creating a Compiled Validator
 
 ### Step 1: Define Your Types
 
@@ -84,83 +83,110 @@ object HtlcValidator extends Validator:
 end HtlcValidator
 ```
 
-### Step 3: Wrap in a Contract
+### Step 3: Compile the Validator
+
+Use `PlutusV3.compile` to compile your validator into a `PlutusV3` object:
 
 ```scala
-import scalus.cardano.blueprint.{CompilerInfo, Contract, Preamble}
-import scalus.cardano.ledger.Language
+import scalus.compiler.Options
+import scalus.uplc.PlutusV3
 
-lazy val HtlcContract = Contract.PlutusV3Contract[ContractDatum, Action](
-  Preamble(
-    title = "Hashed Time-Locked Contract",
-    description = Some(
-      "Releases funds when recipient reveals hash preimage before deadline, " +
-      "otherwise refunds to sender."
-    ),
-    version = Some("1.0.0"),
-    compiler = Some(CompilerInfo.currentScalus),
-    plutusVersion = Some(Language.PlutusV3),
-    license = None
-  ),
-  HtlcValidator.validate  // Reference to the validator's validate method
+private given Options = Options.release
+lazy val HtlcContract = PlutusV3.compile(HtlcValidator.validate)
+```
+
+### Compiler Options
+
+The `Options` control how SIR is lowered to UPLC.
+
+**Presets:**
+
+| Preset | Error Traces | Optimization | Use Case |
+|--------|-------------|-------------|----------|
+| `Options.release` | removed | yes | Production deployment, minimal script size |
+| `Options.default` | kept | no | Development |
+| `Options.debug` | yes | no | Debugging with detailed error messages |
+
+**Key fields:**
+
+```scala
+case class Options(
+    targetLoweringBackend: TargetLoweringBackend, // UPLC lowering strategy
+    targetLanguage: Language,                     // PlutusV1, PlutusV2, PlutusV3
+    targetProtocolVersion: MajorProtocolVersion,  // default: changPV (9)
+    generateErrorTraces: Boolean,                 // include error trace messages
+    removeTraces: Boolean,                        // strip all trace calls
+    optimizeUplc: Boolean,                        // apply UPLC optimizer
 )
 ```
 
-**Preamble fields:**
-- `title`: Short descriptive name
-- `description`: Detailed explanation of functionality
-- `version`: Semantic version string
-- `compiler`: Compiler information (use `CompilerInfo.currentScalus`)
-- `plutusVersion`: Target Plutus version (PlutusV1, PlutusV2, or PlutusV3)
-- `license`: Optional license identifier
-
-## Three Compilation Variants
-
-Each contract provides three pre-compiled variants:
+**Target protocol version** controls which UPLC features are available during lowering. The default is `changPV` (protocol version 9, the Chang hard fork). To use newer features like case-on-builtins, `dropList`, arrays, and `ripemd_160` (available from the van Rossem hard fork, protocol version 11), set `targetProtocolVersion`:
 
 ```scala
-// Debug: Includes error traces and debugging information
-val debugContract = HtlcContract.debugCompiledContract
+// Use van Rossem hard fork features (protocol version 11)
+private given Options = Options.release.copy(
+    targetProtocolVersion = MajorProtocolVersion.vanRossemPV
+)
 
-// Default: Balanced compilation with standard optimizations
-val defaultContract = HtlcContract.defaultCompiledContract
-
-// Release: Optimized for production, minimal script size
-val releaseContract = HtlcContract.releaseCompiledContract
+// Or use the vanRossem preset which sets this automatically
+private given Options = Options.vanRossem
 ```
 
-## Using Contracts in Transactions
+## Using Compiled Contracts
 
-Access the compiled script and use it in your transaction builder:
+### Access Script and Address
 
 ```scala
-import scalus.cardano.address.Address
+import scalus.cardano.address.{Address, Network}
 import scalus.cardano.ledger.*
-import scalus.cardano.txbuilder.*
 
-// Get the compiled contract (choose variant based on environment)
-val compiledContract = HtlcContract.defaultCompiledContract
+// The compiled Plutus script
+val script: Script.PlutusV3 = HtlcContract.script
 
-// Access the script and script address
-val script = compiledContract.script
-val scriptAddress = Address(network, Credential.ScriptHash(script.scriptHash))
+// Script hash
+val scriptHash = script.scriptHash
+
+// Script address for a network
+val mainnetAddress: Address = HtlcContract.address(Network.Mainnet)
+val preprodAddress: Address = HtlcContract.address(Network.Preprod)
+
+// The UPLC program
+val program: Program = HtlcContract.program
+val scriptHex: String = program.doubleCborHex
 ```
+
+### Enable Error Traces for Debugging
+
+Use `.withErrorTraces` to get a version with detailed error messages:
+
+```scala
+// For testing/debugging — includes error traces
+val debugContract = HtlcContract.withErrorTraces
+
+// Use in tests
+val result = debugContract.program.runWithDebug(scriptContext)
+```
+
+### Build Transactions
 
 **Locking funds at the script:**
 
 ```scala
+import scalus.cardano.txbuilder.TxBuilder
+
 def lock(
-    env: Environment,
+    env: CardanoInfo,
     inputUtxo: Utxo,
     changeAddress: Address,
     value: Value,
     datum: ContractDatum
 ): Transaction = {
-  TxBuilder(env)
-    .spend(inputUtxo)
-    .payTo(scriptAddress, value, datum.toData)
-    .changeTo(changeAddress)
-    .build()
+    val scriptAddress = HtlcContract.address(env.network)
+    TxBuilder(env)
+      .spend(inputUtxo)
+      .payTo(scriptAddress, value, datum.toData)
+      .changeTo(changeAddress)
+      .build()
 }
 ```
 
@@ -168,42 +194,55 @@ def lock(
 
 ```scala
 def unlock(
-    env: Environment,
+    env: CardanoInfo,
     lockedUtxo: Utxo,
     collateralUtxo: Utxo,
     redeemer: Action.Reveal,
     recipientAddress: Address
 ): Transaction = {
-  TxBuilder(env)
-    .spend(lockedUtxo, redeemer.toData, script)
-    .payTo(recipientAddress, lockedUtxo.output.value)
-    .collaterals(collateralUtxo)
-    .changeTo(recipientAddress)
-    .build()
+    TxBuilder(env)
+      .spend(lockedUtxo, redeemer.toData, HtlcContract)
+      .payTo(recipientAddress, lockedUtxo.output.value)
+      .collaterals(collateralUtxo)
+      .changeTo(recipientAddress)
+      .build()
 }
 ```
 
-## Accessing Contract Components
+## Parameterized Validators
 
-A `CompiledContract` provides access to all compilation artifacts:
+For validators that need runtime parameters (e.g., a one-shot UTxO reference), use `DataParameterizedValidator`:
 
 ```scala
-val compiled = HtlcContract.defaultCompiledContract
+@Compile
+object AuctionValidator extends DataParameterizedValidator {
+    inline override def spend(
+        oneShotData: Data,
+        datum: Option[Data],
+        redeemer: Data,
+        txInfo: TxInfo,
+        txOutRef: TxOutRef
+    ): Unit = {
+        val oneShot = oneShotData.to[TxOutRef]
+        // ... validator logic
+    }
+}
 
-// The compiled Plutus script
-val script: Script.PlutusV3 = compiled.script
+private given Options = Options.release
+lazy val AuctionContract: PlutusV3[Data => Data => Unit] =
+    PlutusV3.compile(AuctionValidator.validate)
+```
 
-// The UPLC program
-val program: Program = compiled.program
-val scriptHex: String = program.doubleCborHex
+Apply the parameter at runtime to get a concrete contract instance:
 
-// The CIP-57 blueprint (JSON)
-val blueprint: Blueprint = compiled.blueprint
-val blueprintJson: String = blueprint.show
+```scala
+// Apply the one-shot UTxO reference to get a concrete contract
+val appliedContract: PlutusV3[Data => Unit] =
+    AuctionContract.apply(Data.toData(oneShot))
 
-// Script address for a network
-val mainnetAddress: Address = compiled.address(Network.Mainnet)
-val preprodAddress: Address = compiled.address(Network.Preprod)
+// Now use it like a regular contract
+val scriptAddress = appliedContract.address(network)
+val script = appliedContract.script
 ```
 
 ---
@@ -212,13 +251,40 @@ val preprodAddress: Address = compiled.address(Network.Preprod)
 
 ### What are Blueprints?
 
-Contracts provide a way to automatically generate the CIP-57 Blueprints.
-
-**What's included:**
+Blueprints are JSON documents that describe your validator's interface (CIP-57). They include:
 - Contract metadata (title, description, version)
 - Datum and redeemer type schemas
 - Compiled script code and hash
 - Parameter definitions
+
+### Generating Blueprints
+
+Use `Blueprint.plutusV3` to create a blueprint from a compiled contract:
+
+```scala
+import scalus.cardano.blueprint.Blueprint
+
+lazy val HtlcBlueprint = Blueprint.plutusV3[ContractDatum, Action](
+    title = "Hashed Time-Locked Contract",
+    description = "Releases funds when recipient reveals hash preimage before deadline, " +
+        "otherwise refunds to sender.",
+    version = "1.0.0",
+    license = None,
+    compiled = HtlcContract
+)
+```
+
+For parameterized validators, include the parameter type:
+
+```scala
+lazy val AuctionBlueprint = Blueprint.plutusV3[TxOutRef, Datum, Action](
+    title = "Auction",
+    description = "Parameterized auction validator",
+    version = "1.0.0",
+    license = None,
+    compiled = AuctionContract
+)
+```
 
 ### Blueprint Structure
 
@@ -275,7 +341,7 @@ Save the blueprint to a JSON file:
 import java.io.File
 
 val blueprintFile = File("htlc-contract-blueprint.json")
-HtlcContract.defaultCompiledContract.blueprint.writeToFile(blueprintFile)
+HtlcBlueprint.writeToFile(blueprintFile)
 ```
 
 Use cases:
