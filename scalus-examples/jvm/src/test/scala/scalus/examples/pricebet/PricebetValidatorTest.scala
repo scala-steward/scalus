@@ -52,7 +52,8 @@ class PricebetValidatorTest extends AnyFunSuite, ScalusTest {
           signer = Bob.signer
         )
 
-        assertSuccess(provider, joinTx, pricebetUtxo._1)
+        val joinResult = assertSuccess(provider, joinTx, pricebetUtxo._1)
+        assert(joinResult.budget == ExUnits(memory = 290823, steps = 83_204396))
     }
 
     test("Doesn't allow double join") {
@@ -125,7 +126,8 @@ class PricebetValidatorTest extends AnyFunSuite, ScalusTest {
         )
 
         provider.setSlot(beforeSlot)
-        assertSuccess(provider, winTx, joinedPricebetUtxo._1)
+        val winResult = assertSuccess(provider, winTx, joinedPricebetUtxo._1)
+        assert(winResult.budget == ExUnits(memory = 136878, steps = 43_861565))
     }
 
     test("Fails to win with a low rate") {
@@ -183,7 +185,8 @@ class PricebetValidatorTest extends AnyFunSuite, ScalusTest {
         )
 
         provider.setSlot(afterDeadlineSlot)
-        assertSuccess(provider, timeoutTx, pricebetUtxo._1)
+        val timeoutResult = assertSuccess(provider, timeoutTx, pricebetUtxo._1)
+        assert(timeoutResult.budget == ExUnits(memory = 72173, steps = 22_162262))
     }
 
     test("Cannot timeout before deadline") {
@@ -224,7 +227,8 @@ class PricebetValidatorTest extends AnyFunSuite, ScalusTest {
         )
 
         provider.setSlot(updateSlot)
-        assertSuccess(provider, updateTx, oracleUtxo._1)
+        val updateResult = assertSuccess(provider, updateTx, oracleUtxo._1)
+        assert(updateResult.budget == ExUnits(memory = 123415, steps = 38_505709))
     }
 
     test("Oracle forbids unauthorized price updates") {
@@ -632,7 +636,7 @@ object PricebetValidatorTest extends ScalusTest {
         provider: Emulator,
         tx: Transaction,
         scriptInput: TransactionInput
-    ): Unit = {
+    ): scalus.uplc.eval.Result = {
         val result = runValidator(provider, tx, scriptInput)
         assert(result.isSuccess, s"Direct validation failed: $result")
 
@@ -641,6 +645,7 @@ object PricebetValidatorTest extends ScalusTest {
           submitResult.isRight,
           s"Emulator submission failed: ${submitResult.left}"
         )
+        result
     }
 
     def assertFailure(

@@ -5,6 +5,7 @@ import org.scalatest.funsuite.AnyFunSuite
 import scalus.*
 import scalus.uplc.builtin.Data
 import scalus.uplc.builtin.Data.toData
+import scalus.cardano.ledger.ExUnits
 import scalus.cardano.onchain.plutus.v2.OutputDatum
 import scalus.cardano.onchain.plutus.v3.*
 import scalus.cardano.onchain.plutus.prelude.*
@@ -38,6 +39,7 @@ class SimpleTransferValidatorTest extends AnyFunSuite with ScalusTest {
             )
         val res = contract.program.runWithDebug(ctx)
         assert(res.isSuccess, res.logs)
+        assert(res.budget == ExUnits(memory = 366297, steps = 105_621473))
     }
 
     test("deposit wrong signed") {
@@ -84,6 +86,7 @@ class SimpleTransferValidatorTest extends AnyFunSuite with ScalusTest {
         )
         val res = contract.program.runWithDebug(ctx)
         assert(res.isSuccess, res.logs)
+        assert(res.budget == ExUnits(memory = 607707, steps = 180_358633))
     }
 
     test("withdraw wrong signed") {
@@ -111,6 +114,7 @@ class SimpleTransferValidatorTest extends AnyFunSuite with ScalusTest {
         )
         val res = contract.program.runWithDebug(ctx)
         assert(res.isSuccess, res.logs)
+        assert(res.budget == ExUnits(memory = 215620, steps = 60_723702))
     }
 
     test("withdraw more") {

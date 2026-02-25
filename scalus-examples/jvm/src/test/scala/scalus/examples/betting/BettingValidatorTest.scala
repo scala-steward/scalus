@@ -12,6 +12,7 @@ import scalus.cardano.onchain.plutus.v2.OutputDatum
 import scalus.cardano.onchain.plutus.v3.*
 import scalus.cardano.onchain.plutus.prelude.*
 import scalus.cardano.onchain.plutus.prelude.Option.*
+import scalus.cardano.ledger.ExUnits
 import scalus.testing.kit.{ScalusTest, TestUtil}
 
 import scala.language.implicitConversions
@@ -84,6 +85,7 @@ class BettingValidatorTest extends AnyFunSuite, ScalusTest:
             result.logs.foreach(println)
             println(result)
         assert(result.isSuccess, "Script execution should succeed for initial minting")
+        assert(result.budget == ExUnits(memory = 157597, steps = 46_681917))
 
     test("Verify that player2 can join an existing bet"):
         val player1 = TestUtil.mockPubKeyHash(1)
@@ -156,6 +158,7 @@ class BettingValidatorTest extends AnyFunSuite, ScalusTest:
             result.logs.foreach(println)
             println(result)
         assert(result.isSuccess, "Script execution should succeed for player2 joining spending")
+        assert(result.budget == ExUnits(memory = 469532, steps = 140_650944))
 
     test("Verify that the oracle can announce winner and trigger payout"):
         val player1 = TestUtil.mockPubKeyHash(1)
@@ -219,3 +222,4 @@ class BettingValidatorTest extends AnyFunSuite, ScalusTest:
             result.logs.foreach(println)
             println(result)
         assert(result.isSuccess, "Script execution should succeed for announce winner spending")
+        assert(result.budget == ExUnits(memory = 355601, steps = 107_667283))

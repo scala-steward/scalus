@@ -10,6 +10,7 @@ import scalus.cardano.onchain.plutus.v2.TxOut
 import scalus.cardano.onchain.plutus.v3.*
 import scalus.cardano.onchain.plutus.v3.ScriptInfo.SpendingScript
 import scalus.cardano.onchain.plutus.prelude.{List as SList, Option as SOption, SortedMap}
+import scalus.cardano.ledger.ExUnits
 import scalus.testing.kit.ScalusTest
 
 /** Tests for NaivePaymentSplitterValidator using shared test cases. */
@@ -23,6 +24,26 @@ class NaivePaymentSplitterValidatorTest
     private val payeesTxId = random[TxId]
     private val txId = random[TxId]
     private val scriptHash = contract.script.scriptHash
+
+    private val expectedBudgets: Map[String, ExUnits] = Map(
+      "success when payments are correctly split for a single payee" -> ExUnits(memory = 435687, steps = 124_202594),
+      "success when payments are correctly split between 2 payees" -> ExUnits(memory = 711128, steps = 204_616774),
+      "success when payments are correctly split between 3 payees" -> ExUnits(memory = 1_064883, steps = 309_973308),
+      "success when split equally and remainder compensates fee - o1" -> ExUnits(
+        1_064883,
+        309_973308
+      ),
+      "success when split equally and remainder compensates fee - o2" -> ExUnits(
+        1_064883,
+        309_973308
+      ),
+      "success when split equally and remainder compensates fee - o3" -> ExUnits(
+        1_064883,
+        309_973308
+      ),
+      "success between 5 payees" -> ExUnits(memory = 2_059979, steps = 613_556724),
+      "success with multiple contract UTxOs" -> ExUnits(memory = 1_335145, steps = 386_091056)
+    )
 
     // Run all shared test cases
     testCases.foreach { tc =>
@@ -99,6 +120,9 @@ class NaivePaymentSplitterValidatorTest
               result.isSuccess,
               clue = s"Expected success but got failure: ${result.logs.mkString(", ")}"
             )
+            expectedBudgets.get(tc.name).foreach { expected =>
+                assert(result.budget == expected, s"Budget mismatch for '${tc.name}'")
+            }
         else
             assert(
               result.isFailure,

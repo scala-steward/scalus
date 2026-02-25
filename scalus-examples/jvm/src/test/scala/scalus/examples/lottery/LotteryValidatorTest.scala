@@ -42,7 +42,7 @@ class LotteryValidatorTest extends AnyFunSuite, ScalusTest {
         )
 
         provider.setSlot(beforeSlot)
-        assertSuccess(provider, revealTx, lotteryUtxo._1)
+        assertSuccess(provider, revealTx, lotteryUtxo._1, ExUnits(memory = 220512, steps = 65_192809))
     }
 
     test("P2 reveals valid preimage from Empty state") {
@@ -64,7 +64,7 @@ class LotteryValidatorTest extends AnyFunSuite, ScalusTest {
         )
 
         provider.setSlot(beforeSlot)
-        assertSuccess(provider, revealTx, lotteryUtxo._1)
+        assertSuccess(provider, revealTx, lotteryUtxo._1, ExUnits(memory = 222378, steps = 65_787573))
     }
 
     test("P1 reveal succeeds at deadline (boundary)") {
@@ -86,7 +86,7 @@ class LotteryValidatorTest extends AnyFunSuite, ScalusTest {
         )
 
         provider.setSlot(deadlineSlot)
-        assertSuccess(provider, revealTx, lotteryUtxo._1)
+        assertSuccess(provider, revealTx, lotteryUtxo._1, ExUnits(memory = 220512, steps = 65_192809))
     }
 
     test("FAIL: P1 reveal with wrong preimage") {
@@ -222,7 +222,7 @@ class LotteryValidatorTest extends AnyFunSuite, ScalusTest {
         )
 
         provider.setSlot(beforeSlot)
-        assertSuccess(provider, p2RevealTx, lotteryUtxo2._1)
+        assertSuccess(provider, p2RevealTx, lotteryUtxo2._1, ExUnits(memory = 129528, steps = 37_067868))
     }
 
     // Timeout Tests
@@ -264,7 +264,7 @@ class LotteryValidatorTest extends AnyFunSuite, ScalusTest {
         )
 
         provider.setSlot(afterSlot)
-        assertSuccess(provider, timeoutTx, lotteryUtxo2._1)
+        assertSuccess(provider, timeoutTx, lotteryUtxo2._1, ExUnits(memory = 131959, steps = 39_218218))
     }
 
     test("FAIL: Timeout before deadline") {
@@ -347,7 +347,7 @@ class LotteryValidatorTest extends AnyFunSuite, ScalusTest {
         )
 
         provider.setSlot(beforeSlot)
-        assertSuccess(provider, loseTx, lotteryUtxo2._1)
+        assertSuccess(provider, loseTx, lotteryUtxo2._1, ExUnits(memory = 211199, steps = 59_812256))
     }
 
     test("P1 timeout after P1 revealed but P2 didn't reveal") {
@@ -387,7 +387,7 @@ class LotteryValidatorTest extends AnyFunSuite, ScalusTest {
         )
 
         provider.setSlot(afterSlot)
-        assertSuccess(provider, timeoutTx, lotteryUtxo2._1)
+        assertSuccess(provider, timeoutTx, lotteryUtxo2._1, ExUnits(memory = 132027, steps = 39_197731))
     }
 
     test("FAIL: P2 reveals with odd sum (32 + 17 = 49) - Unlucky") {
@@ -493,7 +493,7 @@ class LotteryValidatorTest extends AnyFunSuite, ScalusTest {
         )
 
         provider.setSlot(beforeSlot)
-        assertSuccess(provider, loseTx, lotteryUtxo2._1)
+        assertSuccess(provider, loseTx, lotteryUtxo2._1, ExUnits(memory = 210667, steps = 59_695769))
     }
 
     test("FAIL: P2 second reveal with wrong preimage") {
@@ -658,7 +658,7 @@ class LotteryValidatorTest extends AnyFunSuite, ScalusTest {
         )
 
         provider.setSlot(beforeSlot)
-        assertSuccess(provider, p1RevealTx, lotteryUtxo2._1)
+        assertSuccess(provider, p1RevealTx, lotteryUtxo2._1, ExUnits(memory = 127662, steps = 36_473104))
     }
 }
 
@@ -764,10 +764,14 @@ object LotteryValidatorTest extends ScalusTest {
     private def assertSuccess(
         provider: Emulator,
         tx: Transaction,
-        lotteryInput: TransactionInput
+        lotteryInput: TransactionInput,
+        expectedBudget: ExUnits
     ): Unit = {
         val scriptContext = getScriptContext(provider, tx, lotteryInput)
         val directResult = Try(LotteryContract.code(scriptContext.toData))
+        val evalResult = compiledContract(scriptContext.toData).program.evaluateDebug
+        assert(evalResult.isSuccess, s"UPLC evaluation failed: ${evalResult.logs.mkString(", ")}")
+        assert(evalResult.budget == expectedBudget)
         val submissionResult = provider.submit(tx).await()
 
         directResult.failed.foreach(ex => fail(s"Direct validator call failed: ${ex.getMessage}"))

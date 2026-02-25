@@ -24,6 +24,31 @@ class OptimizedPaymentSplitterValidatorTest
     private val txId = random[TxId]
     private val scriptHash = contract.script.scriptHash
 
+    private val expectedRewardBudgets: Map[String, ExUnits] = Map(
+      "success when payments are correctly split for a single payee" -> ExUnits(
+        356300,
+        100_950225
+      ),
+      "success when payments are correctly split between 2 payees" -> ExUnits(memory = 501857, steps = 141_128280),
+      "success when payments are correctly split between 3 payees" -> ExUnits(memory = 658736, steps = 184_534139),
+      "success when split equally and remainder compensates fee - o1" -> ExUnits(
+        658736,
+        184_534139
+      ),
+      "success when split equally and remainder compensates fee - o2" -> ExUnits(
+        658736,
+        184_534139
+      ),
+      "success when split equally and remainder compensates fee - o3" -> ExUnits(
+        658736,
+        184_534139
+      ),
+      "success between 5 payees" -> ExUnits(memory = 1_006460, steps = 281_029269),
+      "success with multiple contract UTxOs" -> ExUnits(memory = 917110, steps = 256_550379)
+    )
+
+    private val expectedSpendBudget: ExUnits = ExUnits(memory = 77192, steps = 22_645469)
+
     // Run all shared test cases
     testCases.foreach { tc =>
         test(s"Optimized: ${tc.name}") {
@@ -32,26 +57,10 @@ class OptimizedPaymentSplitterValidatorTest
     }
 
     test("Optimized: budget comparison with multiple UTxOs") {
-        // Find the test case with multiple UTxOs
         val tc = testCases.find(_.name.contains("multiple contract UTxOs")).get
-
         val (rewardBudget, spendBudget) = runTestCaseWithBudget(tc)
-
-        println(s"\n=== Optimized Payment Splitter Budget (${tc.contractInputs.size} UTxOs) ===")
-        println(
-          s"Reward endpoint (runs once):    mem=${rewardBudget.memory}, cpu=${rewardBudget.steps}"
-        )
-        println(
-          s"Spend endpoint (per UTxO):      mem=${spendBudget.memory}, cpu=${spendBudget.steps}"
-        )
-        println(
-          s"  (uses indexed access via SpendRedeemer.ownInputIndex - avoids TxOutRef comparison per input)"
-        )
-        val totalUtxos = tc.contractInputs.size
-        println(
-          s"Total for $totalUtxos UTxOs: mem=${rewardBudget.memory + totalUtxos * spendBudget.memory}, cpu=${rewardBudget.steps + totalUtxos * spendBudget.steps}"
-        )
-        println()
+        assert(rewardBudget == ExUnits(memory = 917110, steps = 256_550379))
+        assert(spendBudget == ExUnits(memory = 77192, steps = 22_645469))
     }
 
     private def runTestCase(tc: PaymentSplitterTestCase): Unit = {
@@ -161,6 +170,13 @@ class OptimizedPaymentSplitterValidatorTest
             assert(
               spendResult.isSuccess,
               clue = s"Expected spend success but got failure: ${spendResult.logs.mkString(", ")}"
+            )
+            expectedRewardBudgets.get(tc.name).foreach { expected =>
+                assert(rewardResult.budget == expected, s"Reward budget mismatch for '${tc.name}'")
+            }
+            assert(
+              spendResult.budget == expectedSpendBudget,
+              s"Spend budget mismatch for '${tc.name}'"
             )
         else
             assert(

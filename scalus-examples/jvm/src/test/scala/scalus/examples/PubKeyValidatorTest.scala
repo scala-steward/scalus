@@ -7,6 +7,7 @@ import scalus.uplc.builtin.ByteString.*
 import scalus.uplc.builtin.Data
 import scalus.compiler.sir.TargetLoweringBackend
 import scalus.compiler.{compile, Options}
+import scalus.cardano.ledger.ExUnits
 import scalus.cardano.onchain.plutus.v1.*
 import scalus.cardano.onchain.plutus.prelude.List.{Cons, Nil}
 import scalus.uplc.*
@@ -55,6 +56,8 @@ class PubKeyValidatorTest extends AnyFunSuite with ScalaCheckPropertyChecks:
 //    println(scriptContext.toData)
         val appliedValidator = script $ () $ () $ scriptContext.toData
         given PlutusVM = PlutusVM.makePlutusV1VM()
-        assert(appliedValidator.deBruijnedProgram.evaluateDebug.isSuccess)
+        val evalResult = appliedValidator.deBruijnedProgram.evaluateDebug
+        assert(evalResult.isSuccess)
+        assert(evalResult.budget == ExUnits(memory = 12347, steps = 3_328493))
         assert(PubKeyValidator.validator((), (), scriptContext.toData) == ())
     }

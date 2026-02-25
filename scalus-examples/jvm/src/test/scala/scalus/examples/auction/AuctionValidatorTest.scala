@@ -60,71 +60,35 @@ class AuctionValidatorTest extends AnyFunSuite, ScalusTest {
 
     // Budget assertion tests - limits should decrease as the compiler improves
     test("budget: first bid") {
-        val cpuLimit = 150_000_000L
-        val memLimit = 450_000L
         val budget = TestCase(
           action = TestAction.Bid(bidAmount = 3_000_000L),
           expected = Expected.Success
         ).runWithBudget()
-        assert(
-          budget.steps <= cpuLimit,
-          s"First bid CPU budget ${budget.steps} exceeded limit $cpuLimit"
-        )
-        assert(
-          budget.memory <= memLimit,
-          s"First bid memory budget ${budget.memory} exceeded limit $memLimit"
-        )
+        assert(budget == ExUnits(memory = 341747, steps = 100_716733))
     }
 
     test("budget: outbid with refund") {
-        val cpuLimit = 200_000_000L
-        val memLimit = 590_000L
         val budget = TestCase(
           action = TestAction.Outbid(newBidAmount = 5_000_000L),
           expected = Expected.Success
         ).runWithBudget()
-        assert(
-          budget.steps <= cpuLimit,
-          s"Outbid CPU budget ${budget.steps} exceeded limit $cpuLimit"
-        )
-        assert(
-          budget.memory <= memLimit,
-          s"Outbid memory budget ${budget.memory} exceeded limit $memLimit"
-        )
+        assert(budget == ExUnits(memory = 448544, steps = 130_715443))
     }
 
     test("budget: end auction with winner") {
-        val cpuLimit = 250_000_000L
-        val memLimit = 650_000L // Increased due to double satisfaction prevention check
         val budget = TestCase(
           action = TestAction.EndWithWinner,
           expected = Expected.Success
         ).runWithBudget()
-        assert(
-          budget.steps <= cpuLimit,
-          s"End with winner CPU budget ${budget.steps} exceeded limit $cpuLimit"
-        )
-        assert(
-          budget.memory <= memLimit,
-          s"End with winner memory budget ${budget.memory} exceeded limit $memLimit"
-        )
+        assert(budget == ExUnits(memory = 488497, steps = 139_595906))
     }
 
     test("budget: end auction without bids") {
-        val cpuLimit = 200_000_000L
-        val memLimit = 500_000L // Increased due to double satisfaction prevention check
         val budget = TestCase(
           action = TestAction.EndNoBids,
           expected = Expected.Success
         ).runWithBudget()
-        assert(
-          budget.steps <= cpuLimit,
-          s"End without bids CPU budget ${budget.steps} exceeded limit $cpuLimit"
-        )
-        assert(
-          budget.memory <= memLimit,
-          s"End without bids memory budget ${budget.memory} exceeded limit $memLimit"
-        )
+        assert(budget == ExUnits(memory = 381065, steps = 109_531279))
     }
 }
 

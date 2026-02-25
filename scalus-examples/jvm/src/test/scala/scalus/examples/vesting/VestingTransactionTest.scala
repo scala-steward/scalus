@@ -2,9 +2,13 @@ package scalus.examples.vesting
 
 import org.scalatest.funsuite.AnyFunSuite
 import scalus.cardano.ledger.*
+import scalus.cardano.ledger.utils.AllResolvedScripts
 import scalus.cardano.node.{Emulator, NodeSubmitError}
+import scalus.cardano.txbuilder.RedeemerPurpose
 import scalus.testing.kit.Party.{Alice, Bob, Eve}
+import scalus.testing.kit.TestUtil.getScriptContextV3
 import scalus.testing.kit.{ScalusTest, TestUtil}
+import scalus.uplc.eval.Result
 import scalus.utils.await
 
 class VestingTransactionTest extends AnyFunSuite, ScalusTest {
@@ -25,8 +29,30 @@ class VestingTransactionTest extends AnyFunSuite, ScalusTest {
 
     private val lockAmount: Long = 20_000_000L // 20 ADA
 
+    private val scriptAddress = contract.address(env.network)
+
     private def createProvider: Emulator =
         Emulator.withAddresses(Seq(Alice.address, Bob.address, Eve.address))
+
+    private def runValidator(
+        provider: Emulator,
+        tx: Transaction,
+        scriptInput: TransactionInput
+    ): Result = {
+        val utxos = {
+            val body = tx.body.value
+            val allInputs =
+                (body.inputs.toSet.view ++ body.collateralInputs.toSet.view ++ body.referenceInputs.toSet.view).toSet
+            provider.findUtxos(allInputs).await().toOption.get
+        }
+        val scriptContext = tx.getScriptContextV3(utxos, RedeemerPurpose.ForSpend(scriptInput))
+        val allResolvedPlutusScriptsMap =
+            AllResolvedScripts.allResolvedPlutusScriptsMap(tx, utxos).toOption.get
+        val plutusScript =
+            scriptAddress.scriptHashOption.flatMap(allResolvedPlutusScriptsMap.get).get
+        val program = plutusScript.deBruijnedProgram.toProgram
+        program.runWithDebug(scriptContext)
+    }
 
     private def lock(provider: Emulator): Utxo = {
         val utxos = provider.findUtxos(address = Alice.address).await().toOption.get
@@ -106,8 +132,12 @@ class VestingTransactionTest extends AnyFunSuite, ScalusTest {
           signer = Bob.signer
         )
 
-        val result = provider.submit(withdrawTx).await()
-        assert(result.isRight, s"Full withdrawal failed: $result")
+        val result = runValidator(provider, withdrawTx, lockedUtxo.input)
+        assert(result.isSuccess, s"Validator failed: $result")
+        assert(result.budget == ExUnits(memory = 512420, steps = 141_622207))
+
+        val submitResult = provider.submit(withdrawTx).await()
+        assert(submitResult.isRight, s"Full withdrawal failed: $submitResult")
     }
 
     test("Partial 50% withdrawal at midpoint") {
@@ -133,8 +163,12 @@ class VestingTransactionTest extends AnyFunSuite, ScalusTest {
           signer = Bob.signer
         )
 
-        val result = provider.submit(withdrawTx).await()
-        assert(result.isRight, s"Partial withdrawal failed: $result")
+        val result = runValidator(provider, withdrawTx, lockedUtxo.input)
+        assert(result.isSuccess, s"Validator failed: $result")
+        assert(result.budget == ExUnits(memory = 632596, steps = 177_021468))
+
+        val submitResult = provider.submit(withdrawTx).await()
+        assert(submitResult.isRight, s"Partial withdrawal failed: $submitResult")
 
         // Verify continuing output with preserved datum
         val continuingUtxo = withdrawTx.utxos.find { case (_, txOut) =>
