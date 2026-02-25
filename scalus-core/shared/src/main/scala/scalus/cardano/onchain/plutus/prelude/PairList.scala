@@ -29,7 +29,7 @@ object PairList {
 
     inline def empty[A, B]: PairList[A, B] = PairNil
 
-    def single[A, B](a: A, b: B): PairList[A, B] = PairCons((a, b), PairNil)
+    inline def single[A, B](a: A, b: B): PairList[A, B] = PairCons((a, b), PairNil)
 
     @Ignore
     def from[A, B](it: IterableOnce[(A, B)]): PairList[A, B] =
