@@ -222,4 +222,4 @@ class BettingValidatorTest extends AnyFunSuite, ScalusTest:
             result.logs.foreach(println)
             println(result)
         assert(result.isSuccess, "Script execution should succeed for announce winner spending")
-        assert(result.budget == ExUnits(memory = 351507, steps = 106_428763))
+        assert(result.budget == ExUnits(memory = 351207, steps = 106_380763))

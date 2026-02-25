@@ -461,19 +461,19 @@ class ListTest extends AnyFunSuite with EvalTestKit {
         assertEvalWithBudget(
           List.single(BigInt(1)).at(0),
           BigInt(1),
-          ExUnits(memory = 9664, steps = 2_078370)
+          ExUnits(memory = 9364, steps = 2_030370)
         )
         assertEvalFails[NoSuchElementException](List.single(BigInt(1)).at(1))
         assertEvalFails[NoSuchElementException](List.single(BigInt(1)).at(-1))
         assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).at(0),
           BigInt(1),
-          ExUnits(memory = 9864, steps = 2_167433)
+          ExUnits(memory = 9564, steps = 2_119433)
         )
         assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).at(1),
           BigInt(2),
-          ExUnits(memory = 13832, steps = 3_235680)
+          ExUnits(memory = 13532, steps = 3_187680)
         )
         assertEvalFails[NoSuchElementException](Cons(BigInt(1), Cons(BigInt(2), Nil)).at(2))
         assertEvalFails[NoSuchElementException](Cons(BigInt(1), Cons(BigInt(2), Nil)).at(-1))
@@ -492,19 +492,19 @@ class ListTest extends AnyFunSuite with EvalTestKit {
         assertEvalWithBudget(
           List.single(BigInt(1)).!!(0),
           BigInt(1),
-          ExUnits(memory = 9964, steps = 2_126370)
+          ExUnits(memory = 9664, steps = 2_078370)
         )
         assertEvalFails[NoSuchElementException](List.single(BigInt(1)).!!(1))
         assertEvalFails[NoSuchElementException](List.single(BigInt(1)).!!(-1))
         assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).!!(0),
           BigInt(1),
-          ExUnits(memory = 10164, steps = 2_215433)
+          ExUnits(memory = 9864, steps = 2_167433)
         )
         assertEvalWithBudget(
           Cons(BigInt(1), Cons(BigInt(2), Nil)).!!(1),
           BigInt(2),
-          ExUnits(memory = 14132, steps = 3_283680)
+          ExUnits(memory = 13832, steps = 3_235680)
         )
         assertEvalFails[NoSuchElementException](Cons(BigInt(1), Cons(BigInt(2), Nil)).!!(2))
         assertEvalFails[NoSuchElementException](Cons(BigInt(1), Cons(BigInt(2), Nil)).!!(-1))

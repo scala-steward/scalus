@@ -53,7 +53,7 @@ class OptimizedPaymentSplitterValidatorTest
       "success with multiple contract UTxOs" -> ExUnits(memory = 916810, steps = 256_502379)
     )
 
-    private val expectedSpendBudget: ExUnits = ExUnits(memory = 73098, steps = 21_406949)
+    private val expectedSpendBudget: ExUnits = ExUnits(memory = 72798, steps = 21_358949)
 
     // Run all shared test cases
     testCases.foreach { tc =>
@@ -66,7 +66,7 @@ class OptimizedPaymentSplitterValidatorTest
         val tc = testCases.find(_.name.contains("multiple contract UTxOs")).get
         val (rewardBudget, spendBudget) = runTestCaseWithBudget(tc)
         assert(rewardBudget == ExUnits(memory = 916810, steps = 256_502379))
-        assert(spendBudget == ExUnits(memory = 73098, steps = 21_406949))
+        assert(spendBudget == ExUnits(memory = 72798, steps = 21_358949))
     }
 
     private def runTestCase(tc: PaymentSplitterTestCase): Unit = {

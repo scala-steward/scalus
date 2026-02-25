@@ -411,12 +411,11 @@ object List {
           *   }}}
           */
         def at(index: BigInt): A = {
-            val msg = "Index out of bounds in List.at"
-            if index < 0 then throw new NoSuchElementException(msg)
+            if index < 0 then throw new NoSuchElementException("Index out of bounds in List.at")
             else
                 @tailrec
                 def go(lst: List[A], currentIndex: BigInt): A = lst match
-                    case Nil => throw new NoSuchElementException(msg)
+                    case Nil => throw new NoSuchElementException("Index out of bounds in List.at")
                     case Cons(head, tail) =>
                         if currentIndex == index then head
                         else go(tail, currentIndex + 1)
