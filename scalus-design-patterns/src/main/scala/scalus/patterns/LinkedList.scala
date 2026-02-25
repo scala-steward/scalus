@@ -1,740 +1,561 @@
 package scalus.patterns
 
+import scalus.*
 import scalus.uplc.builtin.Builtins
-import scalus.uplc.builtin.ByteString
-import scalus.uplc.builtin.ByteString.hex
-import scalus.uplc.builtin.ByteString.utf8
-import scalus.uplc.builtin.Data
-import scalus.uplc.builtin.Data.FromData
-import scalus.uplc.builtin.Data.ToData
-import scalus.cardano.onchain.plutus.v1.Address
+import scalus.uplc.builtin.{ByteString, Data, FromData, ToData}
+import scalus.uplc.builtin.ByteString.given
 import scalus.cardano.onchain.plutus.v2.OutputDatum
 import scalus.cardano.onchain.plutus.v3.*
 import scalus.cardano.onchain.plutus.prelude.*
 import scalus.cardano.onchain.plutus.prelude.Option.*
-import scalus.cardano.onchain.plutus.prelude.Ord.*
-import scalus.{show as _, *}
 
-/** Linked list configuration parameter
+// Aliases consistent with the aiken implementation
+
+/** Asset name of the NFT held in the root element. */
+type RootKey = TokenName
+
+/** Raw key for a linked-list node (asset name with the prefix stripped). */
+type NodeKey = ByteString
+
+/** Prefix prepended to every node's asset name. */
+type NodeKeyPrefix = ByteString
+
+/** Length of the node key prefix passed around to avoid length recalculation. */
+type NodeKeyPrefixLength = BigInt
+
+/** Next element pointer stored inside an [[Element]] datum. */
+type Link = Option[NodeKey]
+
+/** Datum variant for linked-list UTxOs.
   *
-  * @param init
-  *   An input reference that makes each initialized linked list unique.
-  * @param deadline
-  *   The deadline to which royalties could be paid.
-  * @param penalty
-  *   A payment address to pay royalties.
+  * `Root` marks the start of the list (not a data node). `Node` is every other element.
   */
-case class Config(
-    init: TxOutRef,
-    deadline: PosixTime,
-    penalty: Address
-) derives FromData,
-      ToData
+enum ElementData derives FromData, ToData:
+    case Root(data: Data)
+    case Node(data: Data)
 
 @Compile
-object Config
+object ElementData:
+    given Eq[ElementData] = (left, right) =>
+        left match {
+            case ElementData.Root(lData) =>
+                right match {
+                    case ElementData.Root(rData) => lData === rData
+                    case ElementData.Node(_)     => false
+                }
+            case ElementData.Node(lData) =>
+                right match {
+                    case ElementData.Root(_)     => false
+                    case ElementData.Node(rData) => lData === rData
+                }
+        }
 
-type NodeKey = Option[TokenName]
-
-/** Node key and reference:
-  *
-  * Passed at redeemer, supposed to be stored in tx's datum.
-  *
-  * @param key
-  *   Has unique key (unless it's the root node).
-  *   - [[scalus.cardano.onchain.plutus.prelude.Option.None]] means a head of the linked list
-  *   - [[scalus.cardano.onchain.plutus.prelude.Option.Some]] means a node of the linked list.
-  * @param ref
-  *   Has a unique link to another node's key (unless it's the last node of the list)
-  *   - [[scalus.cardano.onchain.plutus.prelude.Option.None]] means an end of the linked list (or
-  *     empty head)
-  *   - [[scalus.cardano.onchain.plutus.prelude.Option.Some]] contains a reference key to the next
-  *     node.
-  * @param data
-  *   User data stored in this node
-  *
-  * @note
-  *   Token present as a value asset name and as key at datum.
-  */
-case class Cons(
-    key: NodeKey,
-    ref: NodeKey = None,
-    data: Data = Data.unit
-) derives FromData,
-      ToData
+/** Full datum of every linked-list UTxO. */
+case class Element(data: ElementData, link: Link) derives FromData, ToData
 
 @Compile
-object Cons:
-    /** Constructor of the [[scalus.patterns.Cons]] for a head of the linked list.
+object Element
+
+/** On-chain library for a UTxO-based singly linked list on Cardano.
+  *
+  * Each UTxO in the list holds exactly one NFT under `policyId` (the asset name identifies the
+  * node) and an inline [[Element]] datum with a payload and a `link` to the next node.
+  *
+  * Every list has one root UTxO whose NFT asset name is `rootKey`. Node asset names are
+  * `prefix ++ key`, which lets the validator distinguish root from node tokens cheaply.
+  *
+  * Every mutating operation consumes an **anchor** — the node immediately before the affected
+  * position — and reproduces it with an updated `link`. The anchor's NFT and payload are preserved.
+  */
+@Compile
+object LinkedList {
+
+    /** Validates initializing an empty list.
+      *
+      * Mints exactly one `rootKey` token and produces a `Root` datum with `link = None`.
       */
-    inline def head(ref: NodeKey = None, data: Data = Data.unit): Cons = Cons(key = None, ref, data)
-
-    /** Constructor of the [[scalus.patterns.Cons]] for a node of the linked list.
-      */
-    inline def cons(key: TokenName, ref: NodeKey = None, data: Data = Data.unit): Cons =
-        Cons(key = Some(key), ref, data)
-
-    given Eq[Cons] = (x, y) => x.key === y.key && x.ref === y.ref && x.data === y.data
-
-    given Ord[Cons] = by { case Cons(key, _, _) =>
-        key
+    def init(
+        rootOut: TxOut,
+        txMint: Value,
+        policyId: PolicyId,
+        rootKey: RootKey
+    ): Unit = {
+        val (_, assetName, elemData, link) =
+            authenticateElementUtxoAndGetInfo(rootOut, policyId)
+        elemData match
+            case ElementData.Root(_) => ()
+            case ElementData.Node(_) => fail("init: produced element must be Root")
+        val mintQty = txMint.quantityOf(policyId, assetName)
+        require(assetName === rootKey, "init: asset name must be rootKey")
+        require(mintQty == BigInt(1), "init: rootKey token must be minted")
+        require(link.isEmpty, "init: root link must be empty")
     }
 
-    extension (self: Cons)
-
-        /** Create a nested node
-          *
-          * @param at
-          *   New node key, the head of linked list at current node.
-          */
-        inline def chKey(at: TokenName): Cons = cons(at, self.ref, self.data)
-
-        /** Create a parent node
-          *
-          * @param by
-          *   New node key, the head of tail of linked list at current node.
-          */
-        inline def chRef(by: TokenName): Cons = Cons(self.key, Some(by), self.data)
-
-/** The linked list node UTxO:
-  *
-  * Representation of an [[scalus.cardano.onchain.plutus.v2.TxOut]] of the node for the
-  * [[scalus.patterns.Common]] argument with inputs and outputs of the transactions.
-  *
-  * @param value
-  *   Holds node's token key.
-  * @param cell
-  *   Node state, [[scalus.patterns.Cons]] keys.
-  */
-case class Node(
-    value: Value,
-    cell: Cons
-) derives FromData,
-      ToData
-
-@Compile
-object Node:
-
-    given Eq[Node] = (x, y) => x.value === y.value && x.cell === y.cell
-
-    given Ord[Node] = by { case Node(_, cell) =>
-        cell
+    /** Validates destroying an empty list.
+      *
+      * The root's `link` must be `None` and exactly one `rootKey` token must be burned.
+      */
+    def deinit(
+        rootInput: TxInInfo,
+        txMint: Value,
+        policyId: PolicyId,
+        rootKey: RootKey
+    ): Unit = {
+        val (_, assetName, elemData, link) =
+            authenticateElementUtxoAndGetInfo(rootInput.resolved, policyId)
+        elemData match
+            case ElementData.Root(_) => ()
+            case ElementData.Node(_) => fail("deinit: spent element must be Root")
+        val mintQty = txMint.quantityOf(policyId, assetName)
+        require(mintQty == BigInt(-1), "deinit: rootKey token must be burned")
+        require(assetName === rootKey, "deinit: asset name must be rootKey")
+        require(link.isEmpty, "deinit: list must be empty")
     }
 
-    extension (self: Node)
-
-        def sort(other: Node): (Node, Node) = if self < other then (self, other) else (other, self)
-        def sortByKey(other: Node, key: TokenName): (Node, Node) =
-            if self.cell.key !== Some(key) then (self, other) else (other, self)
-
-/** Common information shared between all redeemers:
-  *
-  * @param policy
-  *   state token (own) policy id.
-  * @param mint
-  *   value minted in current Tx, meant to contain a policy's node token.
-  * @param inputs
-  *   current Tx inputs, list of [[scalus.patterns.Node]].
-  * @param outputs
-  *   current Tx outputs, list of [[scalus.patterns.Node]].
-  */
-case class Common(
-    policy: PolicyId,
-    mint: Value,
-    inputs: List[Node],
-    outputs: List[Node]
-) derives FromData,
-      ToData
-
-@Compile
-object Common
-
-@Compile
-object OrderedLinkedList:
-
-    /** Linked list node token.
+    /** Validates inserting a node in ascending order.
       *
-      * @param key
-      *   Optional node key argument for the non-head nodes.
-      */
-    def nodeToken(key: TokenName = hex""): TokenName =
-        utf8"LAN" ++ key
-
-        /** Node token validation.
-          *
-          * @param token
-          *   A node token to check.
-          */
-    def isNodeToken(token: TokenName): Boolean = token.take(nodeToken().length) === nodeToken()
-
-    /** Node key by a node token.
+      * Enforces `anchorAssetName < newAssetName` and, when the anchor has a successor,
+      * `newKey < linkKey`. The strict inequalities also prove the key was absent (a duplicate would
+      * fail them).
       *
-      * @param token
-      *   A node token.
+      * @param anchorInput
+      *   The node immediately before the insertion point.
+      * @param contAnchorOutput
+      *   The anchor reproduced with `link` pointing to the new node.
+      * @param newElementOutput
+      *   The new node UTxO with the minted token and initial datum.
       */
-    def nodeKey(token: TokenName): NodeKey =
-        Some(token.drop(nodeToken().length)).filter(_.nonEmpty)
+    def insert(
+        anchorInput: TxInInfo,
+        contAnchorOutput: TxOut,
+        newElementOutput: TxOut,
+        txMint: Value,
+        policyId: PolicyId,
+        rootKey: RootKey,
+        prefix: NodeKeyPrefix,
+        prefixLen: NodeKeyPrefixLength
+    ): Unit = {
+        val (
+          anchorAssetName,
+          anchorData,
+          anchorLink,
+          contAnchorLink,
+          newElemAssetName,
+          newElemData,
+          newElemLink
+        ) =
+            validateThreeElements(
+              policyId,
+              anchorInput.resolved,
+              contAnchorOutput,
+              newElementOutput
+            )
 
-        /** Common invariants validation, collect node's inputs and outputs.
-          *
-          * @param policy
-          *   A policy of the linked list.
-          * @param tx
-          *   Current transaction metadata.
-          */
-    def mkCommon(
-        policy: PolicyId,
-        tx: TxInfo
-    ): (Common, List[TxInInfo], List[TxOut], List[PubKeyHash], Interval) =
-        def withPolicy(outs: List[TxOut]) = outs.filter:
-            _.value.toSortedMap.contains(policy)
+        val newKey = extractKey(newElemAssetName, prefixLen)
 
-        val policyInOuts = withPolicy(tx.inputs.map(_.resolved))
-        val policyOutputs = withPolicy(tx.outputs)
-        val nodeOuts = policyInOuts ++ policyOutputs
+        newElemData match
+            case ElementData.Node(_) => ()
+            case ElementData.Root(_) => fail("insert: new element must be Node")
 
-        val head = nodeOuts.headOption.getOrFail("There's must be at least one output")
+        val mintQty = txMint.quantityOf(policyId, newElemAssetName)
+
+        require(mintQty == BigInt(1), "New node NFT must be minted")
+        require(contAnchorLink === Some(newKey), "Continued anchor must point to new node")
+        require(newElemLink === anchorLink, "New element must inherit anchor's old link")
         require(
-          nodeOuts.forall(head.address === _.address),
-          "All node outputs must have same address"
+          hasPrefix(newElemAssetName, prefix, prefixLen),
+          "New node asset name must start with the prefix"
         )
-        val inputs = policyInOuts.map(getNode)
-        val outputs = policyOutputs.map: out =>
-            val node = getNode(out)
-            validateNode(policy, node)
-            node
-        val common = Common(policy, tx.mint, inputs, outputs)
-        (common, tx.inputs, tx.outputs, tx.signatories, tx.validRange)
 
-    /** Collect node output.
-      *
-      * @param out
-      *   An output to collect.
-      */
-    def getNode(out: TxOut): Node = Node(
-      out.value,
-      out.datum match
-          case OutputDatum.OutputDatum(nodeDatum) => nodeDatum.to[Cons]
-          case _                                  => fail("Node datum must be inline")
-    )
+        validateAnchorAssetName(anchorAssetName, anchorData, rootKey, prefix, prefixLen)
 
-    /** Validatie a node output invariants.
-      *
-      * @param policy
-      *   A policy of the linked list.
-      * @param node
-      *   A node to validate.
-      */
-    def validateNode(policy: PolicyId, node: Node): Unit =
-        val Node(value, cell) = node
-        require(
-          cell.key.forall(key => cell.ref.forall(key < _)),
-          "Nodes must be ordered by keys"
-        )
-        val (adaPolicy, adaToken, policyId, token, amount) = value.flatten match
-            case List.Cons(
-                  (adaPolicy, adaToken, _),
-                  List.Cons((policyId, token, amount), List.Nil)
-                ) =>
-                (adaPolicy, adaToken, policyId, token, amount)
-            case _ =>
-                fail(
-                  "There's must be only a token key and a lovelace values for each policy output"
+        anchorData match
+            case ElementData.Node(_) =>
+                require(
+                  Builtins.lessThanByteString(anchorAssetName, newElemAssetName),
+                  "New asset name must be greater than anchor (ascending order)"
                 )
-        require(
-          adaPolicy === Value.adaPolicyId && adaToken === Value.adaTokenName,
-          "There's must be a lovelace value for each policy output"
-        )
-        require(
-          policyId === policy,
-          "There's must be a token key for the policy output"
-        )
-        require(
-          amount == BigInt(1),
-          "Minted token be exactly one per output"
-        )
-        require(
-          isNodeToken(token),
-          "Must be valid node token"
-        )
-        require(
-          nodeKey(token) === cell.key,
-          "Datum must contain a valid node key"
-        )
+            case ElementData.Root(_) => ()
 
-    // MARK: State transition handlers (used in list minting policy)
-    //       aka list natural transformations
-
-    /** Initialize an empty unordered list.
-      *
-      * Application code must ensure that this action can happen only once.
-      */
-    def init(common: Common): Unit =
-        require( // NEW: not checked
-          common.inputs.isEmpty,
-          "Must not spend nodes"
-        )
-        require(
-          common.outputs.length == BigInt(1),
-          "Must a single linked list head node output"
-        )
-        require(
-          common.mint.flatten === List.single((common.policy, nodeToken(), BigInt(1))),
-          "Must mint an node token NFT value for this linked list"
-        )
-
-        /** Deinitialize an empty unordered list.
-          */
-    def deinit(common: Common): Unit = common.inputs match
-        case List.Cons(Node(_value, Cons(_key, None, _)), List.Nil) =>
-            require(
-              common.outputs.isEmpty,
-              "Must not produce nodes"
-            )
-            require( // NEW: _value.quantityOf(common.policy, nodeToken()) == BigInt(1)
-              common.mint.flatten === List.single(
-                (common.policy, nodeToken(), BigInt(-1))
-              ),
-              "Must burn an node token NFT value for this linked list"
-            )
-        case _ =>
-            fail(
-              "There must be a single head node input,\n" +
-                  "the linked list must be empty"
-            )
-
-    /** Insert a node `insertKey` at covering `cell` at the linked list.
-      *
-      * Covering cell could be parent's cell ex reference, but not necessary.
-      *
-      * @param insertKey
-      *   A key the new cell be added at.
-      * @param cell
-      *   A pair of key's parent key, that expected to be at linked list, and a reference to the new
-      *   tail.
-      * @return
-      *   Parent node.
-      */
-    def insert(common: Common, insertKey: PubKeyHash, cell: Cons): Node =
-        val parentIn = common.inputs match
-            case List.Cons(parentIn, List.Nil) => parentIn
-            case _                             => fail("There must be a single covering node input")
-        val PubKeyHash(key) = insertKey
-        val (parentOut, insertNode) = common.outputs match
-            case List.Cons(fstOut, List.Cons(sndOut, List.Nil)) => fstOut.sort(sndOut)
-            case _ => fail("There must be only a parent and an inserted node outputs")
-
-        // Validate key and ref structure, but allow arbitrary data in new node
-        require(
-          insertNode.cell.key === Some(key),
-          "The inserted key must be present at the cell of inserted node"
-        )
-        require(
-          insertNode.cell.ref === cell.ref,
-          "The inserted node must have the expected ref"
-        )
-        require(
-          parentOut.cell.key === cell.key,
-          "Parent key must be preserved"
-        )
-        require(
-          parentOut.cell.ref === Some(key),
-          "The inserted key must be referenced by the parent's key at outputs"
-        )
-        require(
-          parentOut.cell.data === parentIn.cell.data,
-          "Parent data must be preserved"
-        )
-        require(
-          parentOut.value === parentIn.value,
-          "Parent node's value must be preserved"
-        )
-        require(
-          common.mint.flatten === List.single(
-            (common.policy, nodeToken(key), BigInt(1))
-          ),
-          "Must mint an NFT value for the inserted key for this linked list"
-        )
-        parentIn
-
-    /** Remove a non-root node `removeKey` at covering `cell` at the linked list.
-      *
-      * Covering cell must be original parent's cell reference.
-      *
-      * @param removeKey
-      *   A key the cell be removed by.
-      * @param cell
-      *   A pair of key's original parent key, that expected to be at linked list, and a reference
-      *   to the original tail, that remains unchanged.
-      * @return
-      *   Removed node.
-      */
-    def remove(common: Common, removeKey: PubKeyHash, cell: Cons): Node =
-        val PubKeyHash(key) = removeKey
-        val (parentIn, removeNode) = common.inputs match
-            case List.Cons(fstIn, List.Cons(sndIn, List.Nil)) => fstIn.sort(sndIn)
-            case _ => fail("There must be parent and remove node inputs only")
-        val parentOut = common.outputs match
-            case List.Cons(parentOut, List.Nil) => parentOut
-            case _                              => fail("There must be a single parent output")
-        require(
-          cell.chKey(key) === removeNode.cell,
-          "The covering cell must be referenced by removed key at inputs,\n" +
-              "the removed key must be present at the cell of removed node"
-        )
-        require(
-          cell.chRef(key) === parentIn.cell,
-          "The remove key must be referenced by parent's cell at inputs,\n" +
-              "the parent key must be present at the covering cell"
-        )
-        require(
-          parentOut === Node(parentIn.value, cell),
-          "The covering cell must be referenced by the parent's key at outputs,\n" +
-              "the parent node's value must be kept unchanged"
-        )
-        require(
-          common.mint.flatten === List.single(
-            (common.policy, nodeToken(key), BigInt(-1))
-          ),
-          "Must burn an NFT value for the removed key for this linked list"
-        )
-        removeNode
-
-    /** Prepend a new node to the beginning of the list.
-      *
-      * Covering cell is expected to be the head of the linked list.
-      *
-      * @param prependKey
-      *   A key the new cell be added at.
-      * @param cell
-      *   A pair of key's parent key, that expected to empty as a marker of a head of the linked
-      *   list, and a reference to the new tail.
-      * @note
-      *   Same as [[scalus.patterns.OrderedLinkedList.insert]] with a boundary extra check.
-      */
-    def prepend(common: Common, prependKey: PubKeyHash, cell: Cons): Unit =
-        require(
-          cell.key.isEmpty,
-          "A covering cell must be the head of the linked list"
-        )
-        val _ = insert(common, prependKey, cell)
-
-    /** Append a new node to the end of the list.
-      *
-      * Covering cell is expected to be the latest at the tail of the linked list.
-      *
-      * @param appendKey
-      *   A key the new cell be added at.
-      * @param cell
-      *   A pair of key's parent key, that expected to be at linked list, and a reference to the new
-      *   tail, that expected to be empty as a marker of the end of the linked list.
-      * @note
-      *   Same as [[scalus.patterns.OrderedLinkedList.insert]] with a boundary extra check.
-      */
-    def append(common: Common, appendKey: PubKeyHash, cell: Cons): Unit =
-        require(
-          cell.ref.isEmpty,
-          "A covering cell must be a latest at the tail of the linked list"
-        )
-        val parentIn = insert(common, appendKey, cell)
-        require(
-          parentIn.cell.ref.isEmpty,
-          "A parent cell cell must be a latest at the tail of the linked list"
-        )
-
-// assumptions: keys must be unique
-@Compile
-object UnorderedLinkedList:
-
-    /** Linked list node token.
-      *
-      * @param key
-      *   Optional node key argument for the non-head nodes.
-      */
-    def nodeToken(key: TokenName = hex""): TokenName =
-        utf8"LAN" ++ key
-
-        /** Node token validation.
-          *
-          * @param token
-          *   A node token to check.
-          */
-    def isNodeToken(token: TokenName): Boolean = token.take(nodeToken().length) === nodeToken()
-
-    /** Node key by a node token.
-      *
-      * @param token
-      *   A node token.
-      */
-    def nodeKey(token: TokenName): NodeKey =
-        Some(token.drop(nodeToken().length)).filter(_.nonEmpty)
-
-        /** Common invariants validation, collect node's inputs and outputs.
-          *
-          * @param policy
-          *   A policy of the linked list.
-          * @param tx
-          *   Current transaction metadata.
-          */
-    def mkCommon(
-        policy: PolicyId,
-        tx: TxInfo
-    ): (Common, List[TxInInfo], List[TxOut], List[PubKeyHash], Interval) =
-        def withPolicy(outs: List[TxOut]) = outs.filter:
-            _.value.toSortedMap.contains(policy)
-
-        val policyInOuts = withPolicy(tx.inputs.map(_.resolved))
-        val policyOutputs = withPolicy(tx.outputs)
-        val nodeOuts = policyInOuts ++ policyOutputs
-
-        val head = nodeOuts.headOption.getOrFail("There's must be at least one output")
-        require(
-          nodeOuts.forall(head.address === _.address),
-          "All node outputs must have same address"
-        )
-        val inputs = policyInOuts.map(getNode)
-        val outputs = policyOutputs.map(out =>
-            val node = getNode(out)
-            validateNode(policy, node)
-            node
-        )
-        val common = Common(policy, tx.mint, inputs, outputs)
-        (common, tx.inputs, tx.outputs, tx.signatories, tx.validRange)
-
-    /** Collect node output.
-      *
-      * @param out
-      *   An output to collect.
-      */
-    def getNode(out: TxOut): Node = Node(
-      out.value,
-      out.datum match
-          case OutputDatum.OutputDatum(nodeDatum) => nodeDatum.to[Cons]
-          case _                                  => fail("Node datum must be inline")
-    )
-
-    /** Validate a node output invariants.
-      *
-      * @param policy
-      *   A policy of the linked list.
-      * @param node
-      *   A node to validate.
-      */
-    def validateNode(policy: PolicyId, node: Node): Unit =
-        val Node(value, cell) = node
-        val (adaPolicy, adaToken, policyId, token, amount) = value.flatten match
-            case List.Cons(
-                  (adaPolicy, adaToken, _),
-                  List.Cons((policyId, token, amount), List.Nil)
-                ) =>
-                (adaPolicy, adaToken, policyId, token, amount)
-            case _ =>
-                fail(
-                  "There's must be only a token key and a lovelace values for each policy output"
+        anchorLink match
+            case None => ()
+            case Some(linkKey) =>
+                require(
+                  Builtins.lessThanByteString(newKey, linkKey),
+                  "New key must be less than link key (ascending order)"
                 )
-        require(
-          adaPolicy === Value.adaPolicyId && adaToken === Value.adaTokenName,
-          "There's must be a lovelace value for each policy output"
-        )
-        require(
-          policyId === policy,
-          "There's must be a token key for the policy output"
-        )
-        require(
-          amount == BigInt(1),
-          "Minted token be exactly one per output"
-        )
-        require(
-          isNodeToken(token),
-          "Must be valid node token"
-        )
-        require(
-          nodeKey(token) === cell.key,
-          "Datum must contain a valid node key"
-        )
+    }
 
-    // MARK: State transition handlers (used in list minting policy)
-    //       aka list natural transformations
-
-    /** Initialize an empty unordered list.
+    /** Validates appending a node at the tail of the list.
       *
-      * Application code must ensure that this action can happen only once.
+      * The anchor must be the last element (`link = None`). No ordering constraint on the key.
+      *
+      * @param anchorInput
+      *   The last element (`link` must be `None`).
+      * @param contAnchorOutput
+      *   The anchor reproduced with `link` pointing to the new node.
+      * @param newElementOutput
+      *   The new node UTxO with the minted token and initial datum.
       */
-    def init(common: Common): Unit =
-        require( // NEW: not checked
-          common.inputs.isEmpty,
-          "Must not spend nodes"
-        )
-        require(
-          common.outputs.length == BigInt(1),
-          "Must a single linked list head node output"
-        )
-        require(
-          common.mint.flatten === List.single((common.policy, nodeToken(), BigInt(1))),
-          "Must mint an node token NFT value for this linked list"
-        )
-
-        /** Deinitialize an empty unordered list.
-          */
-    def deinit(common: Common): Unit = common.inputs match
-        case List.Cons(Node(_value, Cons(_key, None, _)), List.Nil) =>
-            require(
-              common.outputs.isEmpty,
-              "Must not produce nodes"
-            )
-            require( // NEW: _value.quantityOf(common.policy, nodeToken()) == BigInt(1)
-              common.mint.flatten === List.single(
-                (common.policy, nodeToken(), BigInt(-1))
-              ),
-              "Must burn an node token NFT value for this linked list"
-            )
-        case _ =>
-            fail(
-              "There must be a single head node input,\n" +
-                  "the linked list must be empty"
+    def appendUnordered(
+        anchorInput: TxInInfo,
+        contAnchorOutput: TxOut,
+        newElementOutput: TxOut,
+        txMint: Value,
+        policyId: PolicyId,
+        rootKey: RootKey,
+        prefix: NodeKeyPrefix,
+        prefixLen: NodeKeyPrefixLength
+    ): Unit = {
+        val (
+          anchorAssetName,
+          anchorData,
+          anchorLink,
+          contAnchorLink,
+          newElemAssetName,
+          newElemData,
+          newElemLink
+        ) =
+            validateThreeElements(
+              policyId,
+              anchorInput.resolved,
+              contAnchorOutput,
+              newElementOutput
             )
 
-    /** Insert a node `insertKey` at covering `cell` at the linked list.
+        val newKey = extractKey(newElemAssetName, prefixLen)
+
+        newElemData match
+            case ElementData.Node(_) => ()
+            case ElementData.Root(_) => fail("appendUnordered: new element must be Node")
+
+        val mintQty = txMint.quantityOf(policyId, newElemAssetName)
+
+        require(mintQty == BigInt(1), "New node NFT must be minted")
+        require(anchorLink === None, "Anchor must be the last element (no link)")
+        require(contAnchorLink === Some(newKey), "Continued anchor must point to new node")
+        require(newElemLink === None, "New element must point to nothing")
+        require(
+          hasPrefix(newElemAssetName, prefix, prefixLen),
+          "New node asset name must start with the prefix"
+        )
+
+        validateAnchorAssetName(anchorAssetName, anchorData, rootKey, prefix, prefixLen)
+    }
+
+    /** Validates prepending a node immediately after the root.
       *
-      * Covering cell could be parent's cell ex reference, but not necessary.
+      * The root is the only valid anchor. The new node inherits the root's old `link`. No ordering
+      * constraint on the key.
       *
-      * @param insertKey
-      *   A key the new cell be added at.
-      * @param cell
-      *   A pair of key's parent key, that expected to be at linked list, and a reference to the new
-      *   tail.
-      * @return
-      *   Parent node.
+      * @param rootInput
+      *   The root UTxO (must carry a `Root` datum).
+      * @param contRootOutput
+      *   The root reproduced with `link` pointing to the new node.
+      * @param newElementOutput
+      *   The new node UTxO with the minted token and initial datum.
       */
-    def insert(common: Common, insertKey: PubKeyHash, cell: Cons): Node =
-        val parentIn = common.inputs match
-            case List.Cons(parentIn, List.Nil) => parentIn
-            case _                             => fail("There must be a single covering node input")
-        val PubKeyHash(key) = insertKey
-        val (parentOut, insertNode) = common.outputs match
-            case List.Cons(fstOut, List.Cons(sndOut, List.Nil)) => fstOut.sortByKey(sndOut, key)
-            case _ => fail("There must be only a parent and an inserted node outputs")
+    def prependUnordered(
+        rootInput: TxInInfo,
+        contRootOutput: TxOut,
+        newElementOutput: TxOut,
+        txMint: Value,
+        policyId: PolicyId,
+        rootKey: RootKey,
+        prefix: NodeKeyPrefix,
+        prefixLen: NodeKeyPrefixLength
+    ): Unit = {
+        val (
+          rootAssetName,
+          rootElemData,
+          rootLink,
+          contRootLink,
+          newElemAssetName,
+          newElemData,
+          newElemLink
+        ) =
+            validateThreeElements(policyId, rootInput.resolved, contRootOutput, newElementOutput)
 
-        // Validate key and ref structure, but allow arbitrary data in new node
-        require(
-          insertNode.cell.key === Some(key),
-          "The inserted key must be present at the cell of inserted node"
-        )
-        require(
-          insertNode.cell.ref === cell.ref,
-          "The inserted node must have the expected ref"
-        )
-        require(
-          parentOut.cell.key === cell.key,
-          "Parent key must be preserved"
-        )
-        require(
-          parentOut.cell.ref === Some(key),
-          "The inserted key must be referenced by the parent's key at outputs"
-        )
-        require(
-          parentOut.cell.data === parentIn.cell.data,
-          "Parent data must be preserved"
-        )
-        require(
-          parentOut.value === parentIn.value,
-          "Parent node's value must be preserved"
-        )
-        require(
-          common.mint.flatten === List.single(
-            (common.policy, nodeToken(key), BigInt(1))
-          ),
-          "Must mint an NFT value for the inserted key for this linked list"
-        )
-        parentIn
+        val newKey = extractKey(newElemAssetName, prefixLen)
 
-    // FIXME: linking
-    //
-    // (common.inputs, common.outputs) match
-    //     case (List.Cons(fstIn, List.Cons(sndIn, List.Nil)), List.Cons(parentOut, List.Nil)) =>
-    //
+        rootElemData match
+            case ElementData.Root(_) => ()
+            case ElementData.Node(_) => fail("prependUnordered: anchor must be Root")
 
-    /** Remove a non-root node `removeKey` at covering `cell` at the linked list.
+        newElemData match
+            case ElementData.Node(_) => ()
+            case ElementData.Root(_) => fail("prependUnordered: new element must be Node")
+
+        val mintQty = txMint.quantityOf(policyId, newElemAssetName)
+
+        require(mintQty == BigInt(1), "New node NFT must be minted")
+        require(contRootLink === Some(newKey), "Continued root must point to new node")
+        require(newElemLink === rootLink, "New element must inherit root's old link")
+        require(
+          hasPrefix(newElemAssetName, prefix, prefixLen),
+          "New node asset name must start with the prefix"
+        )
+        require(rootAssetName === rootKey, "Anchor asset name must be rootKey")
+    }
+
+    /** Validates removing a node.
       *
-      * Covering cell must be original parent's cell reference.
+      * The anchor's `link` must point to the node being removed. The anchor inherits the removed
+      * node's `link` and the removed node's NFT is burned.
       *
-      * @param removeKey
-      *   A key the cell be removed by.
-      * @param cell
-      *   A pair of key's original parent key, that expected to be at linked list, and a reference
-      *   to the original tail, that remains unchanged.
-      * @return
-      *   Removed node.
+      * @param anchorInput
+      *   The node immediately before the one to remove.
+      * @param removingNodeInput
+      *   The node to remove.
+      * @param contAnchorOutput
+      *   The anchor reproduced with `link` skipping the removed node.
       */
-    def remove(common: Common, removeKey: PubKeyHash, cell: Cons): Node =
-        val PubKeyHash(key) = removeKey
-        val (parentIn, removeNode) = common.inputs match
-            case List.Cons(fstIn, List.Cons(sndIn, List.Nil)) => fstIn.sortByKey(sndIn, key)
-            case _ => fail("There must be parent and remove node inputs only")
-        val parentOut = common.outputs match
-            case List.Cons(parentOut, List.Nil) => parentOut
-            case _                              => fail("There must be a single parent output")
-        require(
-          cell.chKey(key) === removeNode.cell,
-          "The covering cell must be referenced by removed key at inputs,\n" +
-              "the removed key must be present at the cell of removed node"
-        )
-        require(
-          cell.chRef(key) === parentIn.cell,
-          "The remove key must be referenced by parent's cell at inputs,\n" +
-              "the parent key must be present at the covering cell"
-        )
-        require(
-          parentOut === Node(parentIn.value, cell),
-          "The covering cell must be referenced by the parent's key at outputs,\n" +
-              "the parent node's value must be kept unchanged"
-        )
-        require(
-          common.mint.flatten === List.single(
-            (common.policy, nodeToken(key), BigInt(-1))
-          ),
-          "Must burn an NFT value for the removed key for this linked list"
-        )
-        removeNode
+    def remove(
+        anchorInput: TxInInfo,
+        removingNodeInput: TxInInfo,
+        contAnchorOutput: TxOut,
+        txMint: Value,
+        policyId: PolicyId,
+        rootKey: RootKey,
+        prefix: NodeKeyPrefix,
+        prefixLen: NodeKeyPrefixLength
+    ): Unit = {
+        val (
+          anchorAssetName,
+          anchorData,
+          anchorLink,
+          contAnchorLink,
+          removingAssetName,
+          removingData,
+          removingLink
+        ) =
+            validateThreeElements(
+              policyId,
+              anchorInput.resolved,
+              contAnchorOutput,
+              removingNodeInput.resolved
+            )
 
-    /** Prepend a new node to the beginning of the list.
-      *
-      * Covering cell is expected to be the head of the linked list.
-      *
-      * @param prependKey
-      *   A key the new cell be added at.
-      * @param cell
-      *   A pair of key's parent key, that expected to empty as a marker of a head of the linked
-      *   list, and a reference to the new tail.
-      * @note
-      *   Same as [[scalus.patterns.UnorderedLinkedList.insert]] with a boundary extra check.
-      */
-    def prepend(common: Common, prependKey: PubKeyHash, cell: Cons): Unit =
-        require(
-          cell.key.isEmpty,
-          "A covering cell must be the head of the linked list"
-        )
-        val _ = insert(common, prependKey, cell)
+        val removingKey = extractKey(removingAssetName, prefixLen)
 
-    /** Append a new node to the end of the list.
+        removingData match
+            case ElementData.Node(_) => ()
+            case ElementData.Root(_) => fail("remove: removing element must be Node")
+
+        val mintQty = txMint.quantityOf(policyId, removingAssetName)
+
+        require(mintQty == BigInt(-1), "Removing node NFT must be burnt")
+        require(anchorLink === Some(removingKey), "Anchor must point to the node being removed")
+        require(
+          contAnchorLink === removingLink,
+          "Continued anchor must inherit removed node's link"
+        )
+        require(
+          hasPrefix(removingAssetName, prefix, prefixLen),
+          "Removing node must have the prefix"
+        )
+
+        validateAnchorAssetName(anchorAssetName, anchorData, rootKey, prefix, prefixLen)
+    }
+
+    /** Validates removing the head node.
       *
-      * Covering cell is expected to be the latest at the tail of the linked list.
+      * The root acts as the anchor and its `link` is advanced past the removed node. Unlike
+      * [[remove]], the root's `data` is unconstrained — the caller may update it freely (e.g. to
+      * accumulate the removed node's payload).
       *
-      * @param appendKey
-      *   A key the new cell be added at.
-      * @param cell
-      *   A pair of key's parent key, that expected to be at linked list, and a reference to the new
-      *   tail, that expected to be empty as a marker of the end of the linked list.
-      * @note
-      *   Same as [[scalus.patterns.UnorderedLinkedList.insert]] with a boundary extra check.
+      * @param rootInput
+      *   The root UTxO (`link` must point to the head node).
+      * @param headNodeInput
+      *   The head node to remove.
+      * @param contRootOutput
+      *   The root reproduced with `link` advanced; `data` may change freely.
       */
-    def append(common: Common, appendKey: PubKeyHash, cell: Cons): Unit =
+    def removeHead(
+        rootInput: TxInInfo,
+        headNodeInput: TxInInfo,
+        contRootOutput: TxOut,
+        txMint: Value,
+        policyId: PolicyId,
+        rootKey: RootKey,
+        prefix: NodeKeyPrefix,
+        prefixLen: NodeKeyPrefixLength
+    ): Unit = {
+        val (rootAddr, rootAssetName, rootElemData, rootLink) =
+            authenticateElementUtxoAndGetInfo(rootInput.resolved, policyId)
+        rootElemData match
+            case ElementData.Root(_) => ()
+            case ElementData.Node(_) => fail("removeHead: anchor must be Root")
+
+        val (contRootAddr, contRootAssetName, contRootElemData, contRootLink) =
+            authenticateElementUtxoAndGetInfo(contRootOutput, policyId)
+        contRootElemData match
+            case ElementData.Root(_) => ()
+            case ElementData.Node(_) => fail("removeHead: continued root must be Root")
+
+        val (headNodeAddr, headNodeAssetName, headNodeElemData, headNodeLink) =
+            authenticateElementUtxoAndGetInfo(headNodeInput.resolved, policyId)
+        headNodeElemData match
+            case ElementData.Node(_) => ()
+            case ElementData.Root(_) => fail("removeHead: head element must be Node")
+
+        val headNodeKey = extractKey(headNodeAssetName, prefixLen)
+        val headMintQty = txMint.quantityOf(policyId, headNodeAssetName)
+
+        require(headMintQty == BigInt(-1), "Head node NFT must be burned")
+        require(rootAddr === contRootAddr, "Root must be reproduced at the same address")
+        require(rootAssetName === contRootAssetName, "Root must preserve its NFT asset name")
+        require(rootLink === Some(headNodeKey), "Root must point to the head node")
+        require(rootAddr === headNodeAddr, "Head node must be at the same address as root")
+        require(contRootLink === headNodeLink, "Continued root link must advance past head node")
+        require(rootAssetName === rootKey, "Anchor asset name must be rootKey")
+        require(hasPrefix(headNodeAssetName, prefix, prefixLen), "Head node must have the prefix")
+    }
+
+    /** Spending check for nodes being added or removed.
+      *
+      * Requires at least one token under `policyId` to be minted or burned, delegating structural
+      * validation to the minting policy (coupling pattern).
+      */
+    def requireListTokensMintedOrBurned(policyId: PolicyId, txMint: Value): Unit =
+        txMint.toSortedMap.get(policyId) match
+            case None => fail("No list tokens minted or burned in this transaction")
+            case Some(m) =>
+                require(!m.isEmpty, "No list tokens minted or burned in this transaction")
+
+    /** Validates updating a node's payload without structural changes.
+      *
+      * The element is reproduced at the same address with the same NFT and `link`; only `data` may
+      * change. No list tokens are minted or burned. Explicit indices prevent double-satisfaction.
+      *
+      * @param elementInputIndex
+      *   Index of the element in `txInputs`.
+      * @param contElementOutputIndex
+      *   Index of the reproduced element in `txOutputs`.
+      * @param elementInputOutref
+      *   Cross-checked against `txInputs` to guard against index manipulation.
+      */
+    def validateElementUpdate(
+        elementInputIndex: BigInt,
+        contElementOutputIndex: BigInt,
+        elementInputOutref: TxOutRef,
+        txInputs: List[TxInInfo],
+        txOutputs: List[TxOut],
+        txMint: Value,
+        policyId: PolicyId,
+        rootKey: RootKey,
+        prefix: NodeKeyPrefix,
+        prefixLen: NodeKeyPrefixLength
+    ): Unit = {
+        txMint.toSortedMap.get(policyId) match
+            case None => ()
+            case Some(m) =>
+                require(m.isEmpty, "No list tokens may be minted or burned during update")
+
+        val elemIn = txInputs.at(elementInputIndex)
         require(
-          cell.ref.isEmpty,
-          "A covering cell must be a latest at the tail of the linked list"
+          elemIn.outRef === elementInputOutref,
+          "Input index does not match elementInputOutref"
         )
-        val parentIn = insert(common, appendKey, cell)
+        val elemOut = txOutputs.at(contElementOutputIndex)
+
+        val (elemAddr, elemAssetName, elemData, elemLink) =
+            authenticateElementUtxoAndGetInfo(elemIn.resolved, policyId)
+        val (contElemAddr, contElemAssetName, contElemData, contElemLink) =
+            authenticateElementUtxoAndGetInfo(elemOut, policyId)
+
+        require(elemAddr === contElemAddr, "Element must be reproduced at the same address")
+        require(elemAssetName === contElemAssetName, "Element must preserve its NFT")
+        require(elemLink === contElemLink, "Element's link must remain unchanged")
+
+        elemData match
+            case ElementData.Root(_) =>
+                contElemData match
+                    case ElementData.Root(_) => ()
+                    case ElementData.Node(_) => fail("Element variant must remain Root")
+                require(elemAssetName === rootKey, "Root element must have rootKey asset name")
+            case ElementData.Node(_) =>
+                contElemData match
+                    case ElementData.Node(_) => ()
+                    case ElementData.Root(_) => fail("Element variant must remain Node")
+                require(hasPrefix(elemAssetName, prefix, prefixLen), "Node must have the prefix")
+    }
+
+    private def validateAnchorAssetName(
+        anchorAssetName: TokenName,
+        anchorData: ElementData,
+        rootKey: RootKey,
+        prefix: NodeKeyPrefix,
+        prefixLen: NodeKeyPrefixLength
+    ): Unit =
+        anchorData match
+            case ElementData.Root(_) =>
+                require(anchorAssetName === rootKey, "Root anchor asset name must match rootKey")
+            case ElementData.Node(_) =>
+                require(
+                  hasPrefix(anchorAssetName, prefix, prefixLen),
+                  "Anchor node must have the prefix"
+                )
+
+    private def extractKey(assetName: TokenName, prefixLen: NodeKeyPrefixLength): NodeKey =
+        Builtins.sliceByteString(prefixLen, assetName.length - prefixLen, assetName)
+
+    private def hasPrefix(
+        assetName: TokenName,
+        prefix: NodeKeyPrefix,
+        prefixLen: NodeKeyPrefixLength
+    ): Boolean =
+        Builtins.sliceByteString(BigInt(0), prefixLen, assetName) === prefix
+
+    private def authenticateElementUtxoAndGetInfo(
+        output: TxOut,
+        policyId: PolicyId
+    ): (Address, TokenName, ElementData, Link) = {
+        val datum = output.datum match
+            case OutputDatum.OutputDatum(d) => d
+            case _                          => fail("Element UTxO must have inline datum")
+        require(output.referenceScript === None, "Element UTxO must not have a reference script")
+        val (assetName, qty) = output.value.toSortedMap.get(policyId) match
+            case None => fail("Element UTxO must contain a list NFT")
+            case Some(tokens) =>
+                tokens.toList match
+                    case List.Cons((assetName, qty), List.Nil) => (assetName, qty)
+                    case _ => fail("Element UTxO must contain exactly one list NFT")
+        require(qty == BigInt(1), "NFT quantity must be exactly 1")
+        val element = datum.to[Element]
+        (output.address, assetName, element.data, element.link)
+    }
+
+    private def validateThreeElements(
+        policyId: PolicyId,
+        anchorOut: TxOut,
+        contAnchorOut: TxOut,
+        listElement: TxOut
+    ): (TokenName, ElementData, Link, Link, TokenName, ElementData, Link) = {
+        val (anchorAddr, anchorKey, anchorData, anchorLink) =
+            authenticateElementUtxoAndGetInfo(anchorOut, policyId)
+        val (anchorContAddr, contAnchorKey, contAnchorData, contAnchorLink) =
+            authenticateElementUtxoAndGetInfo(contAnchorOut, policyId)
+        val (listElementAddr, listElementKey, listElementData, listElementLink) =
+            authenticateElementUtxoAndGetInfo(listElement, policyId)
+
+        require(anchorAddr === anchorContAddr, "Anchor must be reproduced at the same address")
         require(
-          parentIn.cell.ref.isEmpty,
-          "A parent cell cell must be a latest at the tail of the linked list"
+          anchorAddr.credential === listElementAddr.credential,
+          "New/removed element must share payment credential with anchor"
         )
+        require(anchorKey === contAnchorKey, "Anchor must preserve its NFT asset name")
+        require(anchorData === contAnchorData, "Anchor underlying data must remain unchanged")
+
+        (
+          anchorKey,
+          anchorData,
+          anchorLink,
+          contAnchorLink,
+          listElementKey,
+          listElementData,
+          listElementLink
+        )
+    }
+
+}
