@@ -952,13 +952,13 @@ class ValueTest extends AnyFunSuite with EvalTestKit with ArbitraryInstances {
         assertEvalWithBudget(
           Value.zero.getLovelace,
           BigInt(0),
-          ExUnits(memory = 14558, steps = 2959156)
+          ExUnits(memory = 12326, steps = 2474162)
         )
 
         assertEvalWithBudget(
           Value.lovelace(BigInt(1000)).getLovelace,
           BigInt(1000),
-          ExUnits(memory = 123503, steps = 34887090)
+          ExUnits(memory = 93327, steps = 24737246)
         )
 
         assertEvalWithBudget(
@@ -968,7 +968,7 @@ class ValueTest extends AnyFunSuite with EvalTestKit with ArbitraryInstances {
             BigInt(1000)
           ).getLovelace,
           BigInt(0),
-          ExUnits(memory = 51081, steps = 13643295)
+          ExUnits(memory = 42869, steps = 11016655)
         )
 
         assertEvalWithBudget(
@@ -978,7 +978,7 @@ class ValueTest extends AnyFunSuite with EvalTestKit with ArbitraryInstances {
             BigInt(0)
           ).getLovelace,
           BigInt(0),
-          ExUnits(memory = 20425, steps = 4113953)
+          ExUnits(memory = 18193, steps = 3628959)
         )
     }
 
@@ -1084,19 +1084,19 @@ class ValueTest extends AnyFunSuite with EvalTestKit with ArbitraryInstances {
         assertEvalWithBudget(
           Value.zero.quantityOf(Value.adaPolicyId, Value.adaTokenName),
           BigInt(0),
-          ExUnits(memory = 14258, steps = 2911156)
+          ExUnits(memory = 12026, steps = 2426162)
         )
 
         assertEvalWithBudget(
           Value.zero.quantityOf(utf8"CS", utf8"TN"),
           BigInt(0),
-          ExUnits(memory = 14258, steps = 2911156)
+          ExUnits(memory = 12026, steps = 2426162)
         )
 
         assertEvalWithBudget(
           Value.lovelace(BigInt(1000)).quantityOf(Value.adaPolicyId, Value.adaTokenName),
           BigInt(1000),
-          ExUnits(memory = 122903, steps = 34791090)
+          ExUnits(memory = 92727, steps = 24641246)
         )
 
         assertEvalWithBudget(
@@ -1104,7 +1104,7 @@ class ValueTest extends AnyFunSuite with EvalTestKit with ArbitraryInstances {
               .lovelace(BigInt(1000))
               .quantityOf(utf8"CS", utf8"TN"),
           BigInt(0),
-          ExUnits(memory = 55681, steps = 14953814)
+          ExUnits(memory = 47469, steps = 12327174)
         )
 
         assertEvalWithBudget(
@@ -1114,7 +1114,7 @@ class ValueTest extends AnyFunSuite with EvalTestKit with ArbitraryInstances {
             BigInt(1000)
           ).quantityOf(Value.adaPolicyId, Value.adaTokenName),
           BigInt(0),
-          ExUnits(memory = 50481, steps = 13547295)
+          ExUnits(memory = 42269, steps = 10920655)
         )
 
         assertEvalWithBudget(
@@ -1124,7 +1124,7 @@ class ValueTest extends AnyFunSuite with EvalTestKit with ArbitraryInstances {
             BigInt(1000)
           ).quantityOf(utf8"PolicyId", utf8"TokenName"),
           BigInt(1000),
-          ExUnits(memory = 122303, steps = 34695202)
+          ExUnits(memory = 92127, steps = 24545358)
         )
     }
 
@@ -1136,13 +1136,13 @@ class ValueTest extends AnyFunSuite with EvalTestKit with ArbitraryInstances {
         assertEvalWithBudget(
           Value.zero.withoutLovelace,
           Value.zero,
-          ExUnits(memory = 12360, steps = 2306140)
+          ExUnits(memory = 8460, steps = 1617392)
         )
 
         assertEvalWithBudget(
           Value.lovelace(BigInt(1000)).withoutLovelace,
           Value.zero,
-          ExUnits(memory = 52215, steps = 14161044)
+          ExUnits(memory = 42671, steps = 11193410)
         )
 
         assertEvalWithBudget(
@@ -1156,7 +1156,7 @@ class ValueTest extends AnyFunSuite with EvalTestKit with ArbitraryInstances {
             utf8"TokenName",
             BigInt(1000)
           ),
-          ExUnits(memory = 47683, steps = 12798279)
+          ExUnits(memory = 39403, steps = 10223885)
         )
 
         assertEvalWithBudget(
@@ -1176,7 +1176,7 @@ class ValueTest extends AnyFunSuite with EvalTestKit with ArbitraryInstances {
             utf8"TokenName",
             BigInt(1000)
           ),
-          ExUnits(memory = 262886, steps = 73837952)
+          ExUnits(memory = 244606, steps = 67640249)
         )
     }
 

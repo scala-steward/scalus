@@ -177,36 +177,36 @@ object SortedMap {
         rhs: SortedMap[A, C]
     ): SortedMap[A, These[B, C]] = {
         def go(
-            lhs: List[(A, B)],
-            rhs: List[(A, C)]
-        ): List[(A, These[B, C])] = lhs match
-            case Nil => rhs.map { pair => (pair._1, These.That(pair._2)) }
-            case Cons(lhsPair, lhsTail) =>
+            lhs: PairList[A, B],
+            rhs: PairList[A, C]
+        ): PairList[A, These[B, C]] = lhs match
+            case PairNil => rhs.map { pair => (pair._1, These.That(pair._2)) }
+            case PairCons(lhsPair, lhsTail) =>
                 rhs match
-                    case Nil => lhs.map { pair => (pair._1, These.This(pair._2)) }
-                    case Cons(rhsPair, rhsTail) =>
+                    case PairNil => lhs.map { pair => (pair._1, These.This(pair._2)) }
+                    case PairCons(rhsPair, rhsTail) =>
                         lhsPair match
                             case (lhsKey, lhsValue) =>
                                 rhsPair match
                                     case (rhsKey, rhsValue) =>
                                         lhsKey <=> rhsKey match
                                             case Order.Less =>
-                                                Cons(
+                                                PairCons(
                                                   (lhsKey, These.This(lhsValue)),
                                                   go(lhsTail, rhs)
                                                 )
                                             case Order.Greater =>
-                                                Cons(
+                                                PairCons(
                                                   (rhsKey, These.That(rhsValue)),
                                                   go(lhs, rhsTail)
                                                 )
                                             case Order.Equal =>
-                                                Cons(
+                                                PairCons(
                                                   (lhsKey, These.These(lhsValue, rhsValue)),
                                                   go(lhsTail, rhsTail)
                                                 )
 
-        SortedMap(go(lhs.toList, rhs.toList))
+        SortedMap(go(lhs.toPairList, rhs.toPairList).toList)
     }
 
     /** Merges two `SortedMap`s into a new `SortedMap` and maps the combined values using a
@@ -243,36 +243,36 @@ object SortedMap {
         f: These[B, C] => D
     ): SortedMap[A, D] = {
         def go(
-            lhs: List[(A, B)],
-            rhs: List[(A, C)]
-        ): List[(A, D)] = lhs match
-            case Nil => rhs.map { pair => (pair._1, f(These.That(pair._2))) }
-            case Cons(lhsPair, lhsTail) =>
+            lhs: PairList[A, B],
+            rhs: PairList[A, C]
+        ): PairList[A, D] = lhs match
+            case PairNil => rhs.map { pair => (pair._1, f(These.That(pair._2))) }
+            case PairCons(lhsPair, lhsTail) =>
                 rhs match
-                    case Nil => lhs.map { pair => (pair._1, f(These.This(pair._2))) }
-                    case Cons(rhsPair, rhsTail) =>
+                    case PairNil => lhs.map { pair => (pair._1, f(These.This(pair._2))) }
+                    case PairCons(rhsPair, rhsTail) =>
                         lhsPair match
                             case (lhsKey, lhsValue) =>
                                 rhsPair match
                                     case (rhsKey, rhsValue) =>
                                         lhsKey <=> rhsKey match
                                             case Order.Less =>
-                                                Cons(
+                                                PairCons(
                                                   (lhsKey, f(These.This(lhsValue))),
                                                   go(lhsTail, rhs)
                                                 )
                                             case Order.Greater =>
-                                                Cons(
+                                                PairCons(
                                                   (rhsKey, f(These.That(rhsValue))),
                                                   go(lhs, rhsTail)
                                                 )
                                             case Order.Equal =>
-                                                Cons(
+                                                PairCons(
                                                   (lhsKey, f(These.These(lhsValue, rhsValue))),
                                                   go(lhsTail, rhsTail)
                                                 )
 
-        SortedMap(go(lhs.toList, rhs.toList))
+        SortedMap(go(lhs.toPairList, rhs.toPairList).toList)
     }
 
     /** Provides an `Eq` instance for `SortedMap[A, B]` where both key and value types are instances
@@ -332,11 +332,11 @@ object SortedMap {
     given sortedMapToData[A: ToData, B: ToData]: ToData[SortedMap[A, B]] =
         (a: SortedMap[A, B]) => {
             def go(
-                a: List[(A, B)]
+                a: PairList[A, B]
             ): scalus.uplc.builtin.BuiltinList[scalus.uplc.builtin.BuiltinPair[Data, Data]] =
                 a match {
-                    case Nil => mkNilPairData()
-                    case Cons(tuple, tail) =>
+                    case PairNil => mkNilPairData()
+                    case PairCons(tuple, tail) =>
                         tuple match {
                             case (a, b) =>
                                 mkCons(
@@ -347,7 +347,7 @@ object SortedMap {
                         }
                 }
 
-            mapData(go(a.toList))
+            mapData(go(a.toPairList))
         }
 
     extension [A, B](self: SortedMap[A, B])
@@ -367,7 +367,7 @@ object SortedMap {
           *   SortedMap.singleton("key", "value").isEmpty === false
           *   }}}
           */
-        inline def isEmpty: Boolean = self.toList.isEmpty
+        inline def isEmpty: Boolean = self.toPairList.isEmpty
 
         /** Checks if the `SortedMap` is non-empty.
           *
@@ -379,7 +379,7 @@ object SortedMap {
           *   SortedMap.singleton("key", "value").nonEmpty === true
           *   }}}
           */
-        inline def nonEmpty: Boolean = self.toList.nonEmpty
+        inline def nonEmpty: Boolean = self.toPairList.nonEmpty
 
         /** Returns the number of key-value pairs in the `SortedMap`.
           *
@@ -391,7 +391,7 @@ object SortedMap {
           *   SortedMap.singleton("key", "value").length === 1
           *   }}}
           */
-        inline def length: BigInt = self.toList.length
+        inline def length: BigInt = self.toPairList.length
 
         /** Returns the size of the `SortedMap`, which is the same as its length.
           *
@@ -570,7 +570,7 @@ object SortedMap {
           */
         def findMap[C](
             predicate: ((A, B)) => Option[C]
-        ): Option[C] = self.toList.findMap(predicate)
+        ): Option[C] = self.toPairList.findMap(predicate)
 
         /** Folds the `SortedMap` from the left, combining key-value pairs into a single value.
           *
@@ -622,9 +622,9 @@ object SortedMap {
           */
         def get(key: A): Option[B] = {
             @tailrec
-            def go(lst: List[(A, B)]): Option[B] = lst match
-                case Nil => None
-                case Cons(pair, tail) =>
+            def go(lst: PairList[A, B]): Option[B] = lst match
+                case PairNil => None
+                case PairCons(pair, tail) =>
                     pair match
                         case (k, v) =>
                             key <=> k match
@@ -632,7 +632,7 @@ object SortedMap {
                                 case Order.Greater => go(tail)
                                 case Order.Equal   => Some(v)
 
-            go(self.toList)
+            go(self.toPairList)
         }
 
         /** Retrieves the value associated with a key, or fails with a custom message if the key is
@@ -707,17 +707,17 @@ object SortedMap {
           *   }}}
           */
         def insert(key: A, value: B): SortedMap[A, B] = {
-            def go(lst: List[(A, B)]): List[(A, B)] = lst match
-                case Nil => single(key, value)
-                case Cons(pair, tail) =>
+            def go(lst: PairList[A, B]): PairList[A, B] = lst match
+                case PairNil => PairList.single(key, value)
+                case PairCons(pair, tail) =>
                     pair match
                         case (k, v) =>
                             key <=> k match
-                                case Order.Less    => Cons((key, value), lst)
-                                case Order.Greater => Cons(pair, go(tail))
-                                case Order.Equal   => Cons((key, value), tail)
+                                case Order.Less    => PairCons((key, value), lst)
+                                case Order.Greater => PairCons(pair, go(tail))
+                                case Order.Equal   => PairCons((key, value), tail)
 
-            SortedMap(go(self.toList))
+            SortedMap(go(self.toPairList).toList)
         }
 
         /** Deletes a key-value pair from the `SortedMap` by key.
@@ -734,18 +734,16 @@ object SortedMap {
           *   }}}
           */
         def delete(key: A): SortedMap[A, B] = {
-            def go(m: SortedMap[A, B]): SortedMap[A, B] = m.toList match
-                case Nil => m
-                case Cons(pair, tail) =>
+            def go(lst: PairList[A, B]): PairList[A, B] = lst match
+                case PairNil => lst
+                case PairCons(pair, tail) =>
                     pair match
                         case (k, v) =>
                             key <=> k match
-                                case Order.Less    => m
-                                case Order.Greater =>
-                                    // TODO: check that cons is use PairList representation.
-                                    SortedMap(Cons(pair, go(SortedMap(tail)).toList))
-                                case Order.Equal => SortedMap(tail)
-            go(self)
+                                case Order.Less    => lst
+                                case Order.Greater => PairCons(pair, go(tail))
+                                case Order.Equal   => tail
+            SortedMap(go(self.toPairList).toList)
         }
 
 }

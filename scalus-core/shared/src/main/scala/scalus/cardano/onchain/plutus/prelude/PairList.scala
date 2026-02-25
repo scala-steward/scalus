@@ -115,6 +115,13 @@ object PairList {
                 if p(head) then Some(head)
                 else tail.find(p)
 
+        def findMap[C](f: ((A, B)) => Option[C]): Option[C] = self match
+            case PairNil => None
+            case PairCons(head, tail) =>
+                f(head) match
+                    case Some(v) => Some(v)
+                    case None    => tail.findMap(f)
+
         def prepended(elem: (A, B)): PairList[A, B] = PairCons(elem, self)
 
         def ++(other: PairList[A, B]): PairList[A, B] = self match
