@@ -44,18 +44,6 @@ val compiled = PlutusV3.compile(OwnerValidator.validate)
 
 `PlutusV3.compile` returns a `PlutusV3[A]` — a compiled script that carries both the on-chain Plutus script and the SIR (Scalus Intermediate Representation) used for diagnostic replay.
 
-## Get the Script Address
-
-Derive the on-chain address from the compiled script's hash:
-
-```scala copy
-import scalus.cardano.ledger.*
-
-val scriptAddress = compiled.address(cardanoInfo.network)
-```
-
-This creates a Cardano address with the script hash as its payment credential. Any funds sent to this address can only be spent by a transaction that provides the correct redeemer and satisfies the validator logic.
-
 ## Lock Funds at the Script Address
 
 Send ADA to the script address with an inline datum. The datum stores the owner's public key hash — whoever holds the corresponding signing key can later unlock the funds:
@@ -70,13 +58,17 @@ val ownerPkh: PubKeyHash = // ... owner's public key hash
 val sponsorAddress = addr"addr_test1qz..."
 
 val lockTx = txBuilder
-    .payTo(scriptAddress, Value.ada(10), ownerPkh)  // 10 ADA with inline datum
+    .payTo(compiled, Value.ada(10), ownerPkh)  // 10 ADA with inline datum
     .complete(provider, sponsorAddress)
     .sign(signer)
     .transaction
 ```
 
-The `payTo(address, value, datum)` overload attaches the datum as an inline datum on the output. The datum type must have a `ToData` instance.
+The `payTo(compiled, value, datum)` overload derives the script address automatically and attaches the datum as an inline datum on the output. It also registers the debug script, enabling diagnostic replay if the script fails — the same behavior as `spend(utxo, redeemer, compiled)`.
+
+<Callout type="info">
+`payTo` also accepts a plain `Address` instead of a `CompiledPlutus` — use `payTo(address, value, datum)` when you need a manually constructed address or when sending to a non-script address.
+</Callout>
 
 ## Spend from the Script Address
 
@@ -133,11 +125,10 @@ given CardanoInfo = CardanoInfo.preprod
 val provider = BlockfrostProvider.preprod("your-api-key").await(30.seconds)
 val sponsorAddress = addr"addr_test1qz..."
 val ownerPkh: PubKeyHash = // ... owner's public key hash
-val scriptAddress = compiled.address(cardanoInfo.network)
 
 // 3. Lock funds at the script address
 val lockTx = txBuilder
-    .payTo(scriptAddress, Value.ada(10), ownerPkh)
+    .payTo(compiled, Value.ada(10), ownerPkh)
     .complete(provider, sponsorAddress)
     .sign(signer)
     .transaction
@@ -145,7 +136,7 @@ val lockTx = txBuilder
 provider.submit(lockTx).await(30.seconds)
 
 // 4. Query the locked UTxO
-val scriptUtxos = provider.findUtxos(scriptAddress).await(30.seconds).getOrElse(Map.empty)
+val scriptUtxos = provider.findUtxos(compiled.address(cardanoInfo.network)).await(30.seconds).getOrElse(Map.empty)
 val lockedUtxo = scriptUtxos.head  // (Input, Output) pair
 
 // 5. Spend from the script address

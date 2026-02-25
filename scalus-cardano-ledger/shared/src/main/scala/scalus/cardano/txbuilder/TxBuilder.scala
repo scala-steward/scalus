@@ -581,6 +581,51 @@ case class TxBuilder(
           )
         )
 
+    /** Sends the specified value to the compiled script's address without a datum.
+      *
+      * The address is derived from the compiled script's hash. The debug script is registered
+      * automatically, enabling diagnostic replay if a script at this address fails.
+      *
+      * @param compiled
+      *   the compiled Plutus script
+      * @param value
+      *   amount to send
+      */
+    def payTo(compiled: CompiledPlutus[?], value: Value): TxBuilder =
+        registerDebugScript(compiled).payTo(compiled.address(env.network), value)
+
+    /** Sends the specified value to the compiled script's address with an inline datum.
+      *
+      * The address is derived from the compiled script's hash. The debug script is registered
+      * automatically, enabling diagnostic replay if a script at this address fails.
+      *
+      * @param compiled
+      *   the compiled Plutus script
+      * @param value
+      *   amount to send
+      * @param datum
+      *   inline datum to attach to the output
+      */
+    def payTo[T: ToData](compiled: CompiledPlutus[?], value: Value, datum: T): TxBuilder =
+        registerDebugScript(compiled).payTo(compiled.address(env.network), value, datum)
+
+    /** Sends the specified value to the compiled script's address with a datum hash.
+      *
+      * The address is derived from the compiled script's hash. The debug script is registered
+      * automatically, enabling diagnostic replay if a script at this address fails.
+      *
+      * Make sure to call [[attach]] with the corresponding datum data before calling [[build]].
+      *
+      * @param compiled
+      *   the compiled Plutus script
+      * @param value
+      *   amount to send
+      * @param datumHash
+      *   hash of the datum (the actual datum must be attached via [[attach]])
+      */
+    def payTo(compiled: CompiledPlutus[?], value: Value, datumHash: DataHash): TxBuilder =
+        registerDebugScript(compiled).payTo(compiled.address(env.network), value, datumHash)
+
     /** Specifies an output that will receive change during transaction balancing.
       *
       * The output specifies the MINIMUM amount it must contain. During balancing, any excess ADA
@@ -1959,9 +2004,9 @@ case class TxBuilder(
       * logs, the evaluator will use the registered compiled script to recompile from SIR with error
       * traces and replay the failing evaluation, producing diagnostic logs.
       *
-      * This is automatically called by the `spend` and `mint` overloads that accept
-      * [[CompiledPlutus]]. Use this method directly for reference-script use cases where the script
-      * is not attached to the transaction but you still want diagnostic replay.
+      * This is automatically called by the `spend`, `mint`, `payTo`, and `references` overloads
+      * that accept [[CompiledPlutus]]. Use this method directly for other use cases where you
+      * want diagnostic replay.
       *
       * '''Migration note:''' If you previously used `validator.script` (a `PlutusScript`) with
       * `spend` or `mint`, pass `validator` (a `CompiledPlutus`) directly instead to enable

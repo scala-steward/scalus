@@ -202,6 +202,34 @@ class DiagnosticReplayTest extends AnyFunSuite {
         )
     }
 
+    test("payTo with CompiledPlutus registers debug script for diagnostic replay") {
+        val scriptUtxo = createScriptLockedUtxo(failingScriptRelease.script)
+        val paymentUtxo = genAdaOnlyPubKeyUtxo(Alice, min = Coin.ada(50)).sample.get
+        val collateralUtxo = genAdaOnlyPubKeyUtxo(Alice, min = Coin.ada(5)).sample.get
+
+        val ex = intercept[TxBuilderException.BalancingException] {
+            TxBuilder(env)
+                .spend(paymentUtxo)
+                .collaterals(collateralUtxo)
+                // Spend with raw PlutusScript — no CompiledPlutus on spend
+                .spend(scriptUtxo, Data.unit, failingScriptRelease.script)
+                // payTo with CompiledPlutus registers the debug script
+                .payTo(failingScriptRelease, Value.ada(1), 42)
+                .build(changeTo = Alice.address)
+        }
+
+        assert(ex.isScriptFailure)
+        val logs = ex.scriptLogs.get
+        assert(
+          logs.nonEmpty,
+          "payTo(compiled, ...) should register debug script enabling diagnostic replay"
+        )
+        assert(
+          logs.exists(_.contains("expected failure")),
+          s"Diagnostic replay logs should contain error message, got: $logs"
+        )
+    }
+
     test("script hash is preserved in withErrorTraces") {
         // withErrorTraces changes the script bytes (adds traces) so it produces a DIFFERENT hash
         // The original hash is used for lookup - this is by design since we look up by original hash
