@@ -1,5 +1,5 @@
 ---
-allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git branch:*), Bash(git log:*), Bash(sbtn quick:*)
+allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git branch:*), Bash(git log:*), Bash(sbtn quick:*), Bash(sbtn scalafmtAll:*)
 description: Review code, run tests, write a git commit message with context
 ---
 
@@ -15,4 +15,5 @@ description: Review code, run tests, write a git commit message with context
 - Review code (use code reviewer agent)
 - Run `optimize` command
 - Run tests and code formatting: `sbtn quick`
+- If you applied any fixes from code review or optimization, run `sbtn scalafmtAll` to re-format before committing
 - Run `commit` command and provide the commit message
