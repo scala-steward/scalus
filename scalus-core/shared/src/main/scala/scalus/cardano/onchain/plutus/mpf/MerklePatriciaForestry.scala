@@ -3,7 +3,7 @@ package scalus.cardano.onchain.plutus.mpf
 import scalus.compiler.Compile
 import scalus.cardano.onchain.plutus.prelude.{require, List}
 import scalus.uplc.builtin.Builtins.*
-import scalus.uplc.builtin.ByteString
+import scalus.uplc.builtin.{ByteString, Data, FromData, ToData}
 
 /** A Merkle Patricia Forestry (MPF) is a key:value structure which stores elements in a radix trie
   * following a key, and where nodes also contains a cryptographic hash digest of the sub-trie or
@@ -31,12 +31,12 @@ object MerklePatriciaForestry:
         nibble: BigInt,
         prefix: ByteString,
         root: ByteString
-    )
+    ) derives FromData, ToData
 
     /** Types of proof steps that can occur in a proof Each step contains a skip value indicating
       * length of common prefix at that level
       */
-    enum ProofStep:
+    enum ProofStep derives FromData, ToData:
         case Branch(skip: BigInt, neighbors: ByteString)
         case Fork(skip: BigInt, neighbor: Neighbor)
         case Leaf(skip: BigInt, key: ByteString, value: ByteString)
