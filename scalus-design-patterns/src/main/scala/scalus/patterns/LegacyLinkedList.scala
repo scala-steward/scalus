@@ -26,7 +26,7 @@ import scalus.{show as _, *}
   * @deprecated
   *   Use [[LinkedList]] instead.
   */
-@deprecated("Use scalus.patterns.LinkedList instead", "0.14.2")
+@deprecated("Use scalus.patterns.LinkedList instead", "0.15.1")
 case class Config(
     init: TxOutRef,
     deadline: PosixTime,
@@ -35,7 +35,7 @@ case class Config(
       ToData
 
 @Compile
-@deprecated("Use scalus.patterns.LinkedList instead", "0.14.2")
+@deprecated("Use scalus.patterns.LinkedList instead", "0.15.1")
 object Config
 
 /** Node key and reference.
@@ -43,7 +43,7 @@ object Config
   * @deprecated
   *   Use [[LinkedList]] instead.
   */
-@deprecated("Use scalus.patterns.LinkedList instead", "0.14.2")
+@deprecated("Use scalus.patterns.LinkedList instead", "0.15.1")
 case class Cons(
     key: Option[TokenName],
     ref: Option[TokenName] = None,
@@ -52,7 +52,7 @@ case class Cons(
       ToData
 
 @Compile
-@deprecated("Use scalus.patterns.LinkedList instead", "0.14.2")
+@deprecated("Use scalus.patterns.LinkedList instead", "0.15.1")
 object Cons:
     inline def head(ref: Option[TokenName] = None, data: Data = Data.unit): Cons =
         Cons(key = None, ref, data)
@@ -73,7 +73,7 @@ object Cons:
         inline def chRef(by: TokenName): Cons = Cons(self.key, Some(by), self.data)
 
 /** @deprecated Use [[LinkedList]] instead. */
-@deprecated("Use scalus.patterns.LinkedList instead", "0.14.2")
+@deprecated("Use scalus.patterns.LinkedList instead", "0.15.1")
 case class Node(
     value: Value,
     cell: Cons
@@ -81,7 +81,7 @@ case class Node(
       ToData
 
 @Compile
-@deprecated("Use scalus.patterns.LinkedList instead", "0.14.2")
+@deprecated("Use scalus.patterns.LinkedList instead", "0.15.1")
 object Node:
 
     given Eq[Node] = (x, y) => x.value === y.value && x.cell === y.cell
@@ -97,7 +97,7 @@ object Node:
             if self.cell.key !== Some(key) then (self, other) else (other, self)
 
 /** @deprecated Use [[LinkedList]] instead. */
-@deprecated("Use scalus.patterns.LinkedList instead", "0.14.2")
+@deprecated("Use scalus.patterns.LinkedList instead", "0.15.1")
 case class Common(
     policy: PolicyId,
     mint: Value,
@@ -107,12 +107,12 @@ case class Common(
       ToData
 
 @Compile
-@deprecated("Use scalus.patterns.LinkedList instead", "0.14.2")
+@deprecated("Use scalus.patterns.LinkedList instead", "0.15.1")
 object Common
 
 /** @deprecated Use [[LinkedList]] instead. */
 @Compile
-@deprecated("Use scalus.patterns.LinkedList instead", "0.14.2")
+@deprecated("Use scalus.patterns.LinkedList instead", "0.15.1")
 object OrderedLinkedList:
 
     def nodeToken(key: TokenName = hex""): TokenName =
@@ -273,7 +273,7 @@ object OrderedLinkedList:
 
 /** @deprecated Use [[LinkedList]] instead. */
 @Compile
-@deprecated("Use scalus.patterns.LinkedList instead", "0.14.2")
+@deprecated("Use scalus.patterns.LinkedList instead", "0.15.1")
 object UnorderedLinkedList:
 
     def nodeToken(key: TokenName = hex""): TokenName =
