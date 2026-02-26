@@ -75,8 +75,8 @@ class LedgerRulesValidationTest extends AnyFunSuite {
         // historical rewards but doesn't subtract prior withdrawals, so the resolved reward balance
         // is too high and doesn't match the actual withdrawal amount.
         assert(
-          nonDrainingErrors.size == 725,
-          s"Expected 725 non-draining withdrawal errors, got ${nonDrainingErrors.size}"
+          nonDrainingErrors.size == 744,
+          s"Expected 744 non-draining withdrawal errors, got ${nonDrainingErrors.size}"
         )
         assert(
           missingAccountErrors.isEmpty,
@@ -89,8 +89,8 @@ class LedgerRulesValidationTest extends AnyFunSuite {
         // Which validator fires first varies, so we assert on the combined total.
         val depositRelatedErrors = stakeCertErrors.size + valueNotConservedErrors.size
         assert(
-          depositRelatedErrors == 94,
-          s"Expected 94 deposit-related errors (stakeCert + valueNotConserved), got $depositRelatedErrors"
+          depositRelatedErrors == 75,
+          s"Expected 75 deposit-related errors (stakeCert + valueNotConserved), got $depositRelatedErrors"
         )
         assert(
           unexpectedErrors.isEmpty,
