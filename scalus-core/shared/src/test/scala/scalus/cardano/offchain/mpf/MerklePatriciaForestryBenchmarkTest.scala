@@ -74,7 +74,9 @@ class MerklePatriciaForestryBenchmarkTest extends AnyFunSuite {
         var trie = MerklePatriciaForestry.empty
         var i = 0
         while i < n do
-            val k = ByteString.fromArray(Array((i >> 24).toByte, (i >> 16).toByte, (i >> 8).toByte, i.toByte))
+            val k = ByteString.fromArray(
+              Array((i >> 24).toByte, (i >> 16).toByte, (i >> 8).toByte, i.toByte)
+            )
             trie = trie.insert(k, value)
             i += 1
         (trie, benchKey, value)

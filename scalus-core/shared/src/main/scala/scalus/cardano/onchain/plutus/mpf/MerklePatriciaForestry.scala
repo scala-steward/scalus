@@ -31,7 +31,8 @@ object MerklePatriciaForestry:
         nibble: BigInt,
         prefix: ByteString,
         root: ByteString
-    ) derives FromData, ToData
+    ) derives FromData,
+          ToData
 
     /** Types of proof steps that can occur in a proof Each step contains a skip value indicating
       * length of common prefix at that level
