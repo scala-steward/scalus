@@ -5,9 +5,6 @@ import scalus.compiler.sir.SIR.Pattern
 import scalus.compiler.sir.{AnnotationsDecl, DataDecl, SIR, SIRType}
 import scalus.uplc.*
 
-@deprecated("Use ScottEncodingLowering instead", "0.13.0")
-type SimpleSirToUplcLowering = ScottEncodingLowering
-
 /** Scott encoding-based lowering from Scalus Intermediate Representation [[SIR]] to UPLC
   * [[scalus.uplc.Term]].
   *
@@ -98,7 +95,7 @@ class ScottEncodingLowering(
                 case SIR.Case(Pattern.Const(_), _, anns) =>
                     val pos = anns.pos
                     throw new IllegalArgumentException(
-                      s"Constant pattern not supported in SimpleSirToUplcLowering at ${pos.file}:${pos.startLine}, ${pos.startColumn}"
+                      s"Constant pattern not supported in ScottEncodingLowering at ${pos.file}:${pos.startLine}, ${pos.startColumn}"
                     )
                 case SIR.Case(Pattern.Wildcard, _, anns) =>
                     val pos = anns.pos

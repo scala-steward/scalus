@@ -592,13 +592,11 @@ object PlutusScriptEvaluator {
             // Create budget spender based on evaluation mode
             val spender = mode match
                 case EvaluatorMode.EvaluateAndComputeCost => CountingBudgetSpender()
-                case EvaluatorMode.Validate               =>
-                    // Create budget from redeemer execution units
-                    val budget = ExBudget.fromCpuAndMemory(
-                      cpu = redeemer.exUnits.steps,
-                      memory = redeemer.exUnits.memory
+                case EvaluatorMode.Validate =>
+                    RestrictingBudgetSpenderWithScriptDump(
+                      redeemer.exUnits,
+                      debugDumpFilesForTesting
                     )
-                    RestrictingBudgetSpenderWithScriptDump(budget, debugDumpFilesForTesting)
 
             val logger = Log()
             val hash = plutusScript.scriptHash

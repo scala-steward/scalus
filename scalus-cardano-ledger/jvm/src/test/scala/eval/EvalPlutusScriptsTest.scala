@@ -40,7 +40,7 @@ class EvalPlutusScriptsTest extends AnyFunSuite {
         val costModels = params.costModels
         val evaluator = PlutusScriptEvaluator(
           slotConfig = slotConfig,
-          initialBudget = ExBudget.enormous,
+          initialBudget = ExUnits.enormous,
           protocolMajorVersion = CardanoInfo.mainnet.majorProtocolVersion,
           costModels = costModels,
           mode = EvaluatorMode.EvaluateAndComputeCost,

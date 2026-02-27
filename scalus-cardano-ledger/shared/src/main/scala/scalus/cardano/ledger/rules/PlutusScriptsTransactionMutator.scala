@@ -1,8 +1,6 @@
 package scalus.cardano.ledger
 package rules
 
-import scalus.uplc.eval.ExBudget
-
 import scala.util.boundary
 import scala.util.boundary.break
 import scala.util.control.NonFatal
@@ -25,8 +23,7 @@ object PlutusScriptsTransactionMutator extends STS.Mutator {
         try {
             PlutusScriptEvaluator(
               slotConfig = slotConfig,
-              initialBudget =
-                  ExBudget.fromCpuAndMemory(maxTxExecutionUnits.steps, maxTxExecutionUnits.memory),
+              initialBudget = maxTxExecutionUnits,
               protocolMajorVersion = protocolVersion.toMajor,
               costModels = protocolParameters.costModels,
               mode = context.evaluatorMode

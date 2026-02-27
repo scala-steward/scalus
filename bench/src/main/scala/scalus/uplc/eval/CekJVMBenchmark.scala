@@ -9,6 +9,7 @@ import org.openjdk.jmh.annotations.Scope
 import org.openjdk.jmh.annotations.Setup
 import org.openjdk.jmh.annotations.State
 import scalus.*
+import scalus.cardano.ledger.ExUnits
 import scalus.uplc.DeBruijnedProgram
 
 import java.nio.file.Files
@@ -53,5 +54,5 @@ class CekJVMBenchmark:
     @BenchmarkMode(Array(Mode.AverageTime))
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
     def bench() = {
-        vm.evaluateScript(program, RestrictingBudgetSpender(ExBudget.enormous), NoLogger)
+        vm.evaluateScript(program, RestrictingBudgetSpender(ExUnits.enormous), NoLogger)
     }

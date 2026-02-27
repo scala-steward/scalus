@@ -13,7 +13,7 @@ import scalus.uplc.builtin.ByteString.*
 import scalus.cardano.ledger.SlotConfig
 import scalus.compiler.compile
 import scalus.examples.PubKeyValidator
-import scalus.uplc.eval.ExBudget
+import scalus.cardano.ledger.ExUnits as ScalusExUnits
 import scalus.utils.Hex.hexToBytes
 
 import java.math.BigInteger
@@ -31,7 +31,7 @@ class TxEvaluatorTest extends AnyFunSuite:
         costMdls.add(CostModelUtil.PlutusV2CostModel)
         val evaluator = TxEvaluator(
           SlotConfig.mainnet,
-          initialBudget = ExBudget.fromCpuAndMemory(10_000000000L, 10_000000L),
+          initialBudget = ScalusExUnits(memory = 10_000000L, steps = 10_000000000L),
           protocolMajorVersion = 8,
           costMdls = costMdls
         )
@@ -101,7 +101,7 @@ class TxEvaluatorTest extends AnyFunSuite:
         costMdls.add(CostModelUtil.PlutusV3CostModel)
         val evaluator = TxEvaluator(
           SlotConfig.mainnet,
-          initialBudget = ExBudget.fromCpuAndMemory(10_000000000L, 10_000000L),
+          initialBudget = ScalusExUnits(memory = 10_000000L, steps = 10_000000000L),
           protocolMajorVersion = 9,
           costMdls = costMdls
         )

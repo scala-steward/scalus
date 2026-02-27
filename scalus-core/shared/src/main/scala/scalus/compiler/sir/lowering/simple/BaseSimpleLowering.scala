@@ -166,8 +166,8 @@ abstract class BaseSimpleLowering(
             )
         }.toList
 
-    /** Get bindings for wildcard pattern. Override in subclasses if needed. SimpleSirToUplcLowering
-      * uses actual parameter names. SirToUplc110Lowering uses unused binding names.
+    /** Get bindings for wildcard pattern. Override in subclasses if needed. ScottEncodingLowering
+      * uses actual parameter names. SumOfProductsLowering uses unused binding names.
       */
     protected def getWildcardBindings(constrDecl: ConstrDecl): List[String] =
         constrDecl.params.map(_.name)

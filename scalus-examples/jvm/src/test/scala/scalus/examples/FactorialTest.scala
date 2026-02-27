@@ -2,6 +2,7 @@ package scalus.examples
 
 import org.scalatest.funsuite.AnyFunSuite
 import scalus.*
+import scalus.cardano.ledger.ExUnits
 import scalus.testing.kit.ScalusTest
 import scalus.uplc.*
 import scalus.uplc.DefaultFun.{IfThenElse, LessThanEqualsInteger, MultiplyInteger, SubtractInteger}
@@ -43,7 +44,7 @@ class FactorialTest extends AnyFunSuite with ScalusTest {
         (program $ 10.asTerm).term.evaluateDebug match {
             case Result.Success(term, budget, _, _) =>
                 assert(term == asTerm(3628800))
-                assert(budget == ExBudget.fromCpuAndMemory(7752456, 28362))
+                assert(budget == ExUnits(memory = 28362, steps = 7752456))
             case Result.Failure(err, budget, _, _) =>
                 fail(s"Evaluation failed: $err")
         }

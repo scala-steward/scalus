@@ -1,8 +1,6 @@
 package scalus.cardano.ledger
 package utils
 
-import scalus.uplc.eval.ExBudget
-
 object IsValidFlagTransactionSetter {
     def setIsValidTransactionFlag(
         transaction: Transaction,
@@ -17,8 +15,7 @@ object IsValidFlagTransactionSetter {
         try {
             PlutusScriptEvaluator(
               slotConfig = slotConfig,
-              initialBudget =
-                  ExBudget.fromCpuAndMemory(maxTxExecutionUnits.steps, maxTxExecutionUnits.memory),
+              initialBudget = maxTxExecutionUnits,
               protocolMajorVersion = protocolVersion.toMajor,
               costModels = protocolParameters.costModels,
               mode = EvaluatorMode.Validate,

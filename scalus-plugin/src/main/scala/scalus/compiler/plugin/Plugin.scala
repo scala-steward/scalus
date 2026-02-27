@@ -506,10 +506,25 @@ class ScalusPhase(debugLevel: Int) extends PluginPhase {
                       value.srcPos
                     )
             }
+            // Map old names to canonical enum names
+            backend match
+                case "SimpleSirToUplcLowering" =>
+                    report.warning(
+                      s"ScalusPhase: SimpleSirToUplcLowering is deprecated, use ScottEncodingLowering instead",
+                      value.srcPos
+                    )
+                    backend = "ScottEncodingLowering"
+                case "SirToUplc110Lowering" =>
+                    report.warning(
+                      s"ScalusPhase: SirToUplc110Lowering is deprecated, use SumOfProductsLowering instead",
+                      value.srcPos
+                    )
+                    backend = "SumOfProductsLowering"
+                case _ => ()
             if backend.equals("SirToUplcV3Lowering") then useUniversalDataConversion = true
             if parsed then {
                 // check that the backend is valid
-                if !(backend == "SimpleSirToUplcLowering" || backend == "SirToUplc110Lowering" || backend == "SirToUplcV3Lowering")
+                if !(backend == "ScottEncodingLowering" || backend == "SumOfProductsLowering" || backend == "SirToUplcV3Lowering")
                 then
                     report.warning(
                       s"ScalusPhase: Unknown targetLoweringBackend: ${backend}, using default: ${SIRDefaultOptions.targetLoweringBackend}",

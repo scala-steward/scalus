@@ -12,7 +12,7 @@ import scalus.uplc.builtin.ByteString
 import scalus.cardano.ledger
 import scalus.cardano.ledger.{MajorProtocolVersion, PlutusScriptEvaluationException, PlutusScriptEvaluator, SlotConfig}
 import scalus.cardano.onchain.plutus.ScriptContext
-import scalus.uplc.eval.ExBudget
+import scalus.cardano.ledger.ExUnits as ScalusExUnits
 
 import java.math.BigInteger
 import java.util
@@ -406,9 +406,9 @@ class LegacyScalusTransactionEvaluator(
 
     // Initialize tx evaluator
     private lazy val txEvaluator =
-        val txBudget = ExBudget.fromCpuAndMemory(
-          cpu = protocolParams.getMaxTxExSteps.toLong,
-          memory = protocolParams.getMaxTxExMem.toLong
+        val txBudget = ScalusExUnits(
+          memory = protocolParams.getMaxTxExMem.toLong,
+          steps = protocolParams.getMaxTxExSteps.toLong
         )
 
         TxEvaluator(

@@ -10,7 +10,6 @@ import scalus.uplc.builtin.Builtins.*
 import scalus.uplc.builtin.*
 import scalus.cardano.address.Address
 import scalus.serialization.cbor.Cbor
-import scalus.uplc.eval.ExCPU
 import scalus.utils.Hex.toHex
 import scalus.utils.{Pretty, Style}
 import upickle.default.ReadWriter as UpickleReadWriter
@@ -456,14 +455,6 @@ final case class Slot(slot: Long) derives Codec {
 /** Represents execution units for Plutus scripts in Cardano */
 case class ExUnits(memory: Long, steps: Long) derives UpickleReadWriter {
 
-    /** Returns CPU steps (same as steps)
-      *
-      * @deprecated
-      *   Use .steps directly
-      */
-    @deprecated("Use .steps directly", "0.13.0")
-    def cpu: ExCPU = ExCPU(steps)
-
     /** Formats execution units as JSON string */
     def showJson: String =
         val memoryFormatted = String.format("%.6f", memory / 1000000d)
@@ -500,6 +491,7 @@ case class ExUnits(memory: Long, steps: Long) derives UpickleReadWriter {
 
 object ExUnits {
     val zero: ExUnits = ExUnits(0, 0)
+    val enormous: ExUnits = ExUnits(Long.MaxValue, Long.MaxValue)
 
     /** CBOR encoder for ExUnits */
     given Encoder[ExUnits] = deriveEncoder

@@ -5,9 +5,6 @@ import scalus.compiler.sir.SIR.Pattern
 import scalus.compiler.sir.*
 import scalus.uplc.*
 
-@deprecated("Use SumOfProductsLowering instead", "0.13.0")
-type SirToUplc110Lowering = SumOfProductsLowering
-
 /** UPLC 1.1.0-based lowering from Scalus Intermediate Representation [[SIR]] to UPLC
   * [[scalus.uplc.Term]].
   *
@@ -35,7 +32,7 @@ class SumOfProductsLowering(
     targetProtocolVersion: MajorProtocolVersion = MajorProtocolVersion.changPV
 ) extends BaseSimpleLowering(sir, generateErrorTraces, targetLanguage, targetProtocolVersion):
 
-    /** For wildcard patterns in SirToUplc110Lowering, use unused binding names */
+    /** For wildcard patterns in SumOfProductsLowering, use unused binding names */
     override protected def getWildcardBindings(constrDecl: ConstrDecl): List[String] =
         constrDecl.params.map(p => s"__scalus_unused_binding_${p.name}")
 
@@ -100,7 +97,7 @@ class SumOfProductsLowering(
                 case SIR.Case(Pattern.Const(_), _, anns) =>
                     val pos = anns.pos
                     throw new IllegalArgumentException(
-                      s"Constant pattern not supported in SirToUplc110Lowering at ${pos.file}:${pos.startLine}, ${pos.startColumn}"
+                      s"Constant pattern not supported in SumOfProductsLowering at ${pos.file}:${pos.startLine}, ${pos.startColumn}"
                     )
                 case SIR.Case(Pattern.Wildcard, _, anns) =>
                     val pos = anns.pos
@@ -121,7 +118,7 @@ class SumOfProductsLowering(
                     case SIR.Case(Pattern.Const(_), _, anns) =>
                         val pos = anns.pos
                         throw new IllegalArgumentException(
-                          s"Constant pattern not supported in SirToUplc110Lowering at ${pos.file}:${pos.startLine}, ${pos.startColumn}"
+                          s"Constant pattern not supported in SumOfProductsLowering at ${pos.file}:${pos.startLine}, ${pos.startColumn}"
                         )
                     case SIR.Case(Pattern.Wildcard, body, _) =>
                         // newtype match

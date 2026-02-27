@@ -4,7 +4,6 @@ import org.openjdk.jmh.annotations.*
 import scalus.bloxbean.ResourcesUtxoResolver
 import scalus.uplc.builtin.Data
 import scalus.cardano.ledger.*
-import scalus.uplc.eval.ExBudget
 
 import java.util.concurrent.TimeUnit
 import scala.annotation.nowarn

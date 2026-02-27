@@ -4,7 +4,7 @@ package eval
 
 import org.scalatest.funsuite.AnyFunSuite
 import scalus.uplc.builtin.platform
-import scalus.cardano.ledger.{CardanoInfo, Language, MajorProtocolVersion}
+import scalus.cardano.ledger.{CardanoInfo, ExUnits, Language, MajorProtocolVersion}
 
 import scala.util.Failure
 import scala.util.Success
@@ -1060,7 +1060,7 @@ abstract class PlutusConformanceTest extends AnyFunSuite:
                 val budget = Try(readFile(s"$path/$name.uplc.budget.expected"))
                 budget match
                     case Success(BudgetRegex(cpu, mem)) =>
-                        Right(ExBudget.fromCpuAndMemory(cpu.toLong, mem.toLong))
+                        Right(ExUnits(memory = mem.toLong, steps = cpu.toLong))
                     case Success("parse error") => Left("parse error")
                     case Success("evaluation failure") => Left("evaluation failure")
                     case Failure(_) => Left("no file")
