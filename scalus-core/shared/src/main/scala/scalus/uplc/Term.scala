@@ -268,9 +268,6 @@ object Term {
         if firstLine.length <= maxLength then firstLine
         else firstLine.take(maxLength) + "..."
 
-    @deprecated("Use alphaEq or α_== methods instead", "0.13.0")
-    def alphaEq(t1: Term, t2: Term): Boolean = t1 α_== t2
-
     extension (sc: StringContext)
         /** Creates a variable term.
           * @param args
@@ -287,8 +284,6 @@ object Term {
         def asTerm: Term = Term.Const(summon[Constant.LiftValue[A]].lift(a))
 
     def λ(name: String, names: String*)(term: Term): Term = lam(name, names*)(term)
-    @deprecated("Use lam or λ methods instead", "0.13.0")
-    def λλ(name: String)(f: Term => Term): Term = lam(name)(f(vr(name)))
     def lam(name: String, names: String*)(term: Term): Term =
         names.view.prepended(name).foldRight(term)(Term.LamAbs(_, _))
 

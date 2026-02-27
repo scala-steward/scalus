@@ -86,9 +86,6 @@ sealed trait Network {
     /** Check if this is mainnet */
     def isMainnet: Boolean = this == Network.Mainnet
 
-    @deprecated("Use networkId instead", "0.13.0")
-    def value: Byte = networkId
-
     /** Get the numeric value for this network */
     def networkId: Byte
 }
@@ -110,9 +107,6 @@ object Network {
         override def toString: String = s"Other($v)"
         def networkId: Byte = v
     }
-
-    @deprecated("Use fromNetworkId instead", "0.13.0")
-    def fromByte(value: Byte): Network = fromNetworkId(value)
 
     /** Creates Network from network id byte value */
     def fromNetworkId(value: Byte): Network = value match

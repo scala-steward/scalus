@@ -25,10 +25,6 @@ extension (x: Boolean)
       */
     inline def ? : Boolean = ${ Macros.questionMark('x) }
 
-    @deprecated("Use prelude.require() instead", "0.13.0")
-    inline infix def orFail(inline message: String): Unit =
-        if x then () else fail(message)
-
 extension (self: BigInt)
     def to(other: BigInt): List[BigInt] = List.range(self, other)
     def until(other: BigInt): List[BigInt] = List.rangeUntil(self, other)

@@ -65,116 +65,11 @@ object RedeemerPurpose {
     }
 }
 
-@deprecated("use RedeemerPurpose instead", "0.13.0")
-object RedeemerPurposeUtils {
-    @deprecated("use purpose.redeemerTag instead", "0.13.0")
-    def redeemerPurposeToRedeemerTag(purpose: RedeemerPurpose): RedeemerTag =
-        purpose.redeemerTag
-}
-
-// ============================================================================
-// RedeemersContext
-// ============================================================================
-
-/** Contains parts of a transaction that are needed for redeemer processing.
-  */
-@deprecated("Use Transaction-based methods directly", "0.13.0")
-case class RedeemersContext(
-    inputs: Vector[TransactionInput] = Vector.empty,
-    mintingPolicyHashes: Vector[ScriptHash] = Vector.empty,
-    rewardAddresses: Vector[RewardAccount] = Vector.empty,
-    certs: Vector[Certificate] = Vector.empty,
-    proposals: Vector[ProposalProcedure] = Vector.empty,
-    voters: Vector[Voter] = Vector.empty
-)
-
-// ============================================================================
-// RedeemersContext utilities
-// ============================================================================
-
-object RedeemersContext {
-    @deprecated("Use Transaction-based methods directly", "0.13.0")
-    def fromTransaction(tx: Transaction): RedeemersContext = {
-        val body = tx.body.value
-        RedeemersContext(
-          inputs = body.inputs.toSeq.toVector,
-          mintingPolicyHashes = body.mint.map(_.assets.keys.toVector).getOrElse(Vector.empty),
-          rewardAddresses = body.withdrawals.getOrElse(Withdrawals.empty).withdrawals.keys.toVector,
-          /*
-            TODO: shouldn't this be TaggedOrderedSet?
-            /** Certificates for delegation, stake operations, etc. */
-            certificates: TaggedSet[Certificate] = TaggedSet.empty,
-           */
-          certs = body.certificates.toSeq.toVector,
-          proposals = body.proposalProcedures.toSeq.toVector,
-          voters = body.votingProcedures match {
-              case Some(voters) =>
-                  voters.procedures.keys.toVector
-              case None => Vector.empty
-          }
-        )
-    }
-}
-
 // ============================================================================
 // Redeemer attachment/detachment
 // ============================================================================
 
 object RedeemerManagement {
-    @deprecated("Use detachRedeemer(Transaction, Redeemer) instead", "0.13.0")
-    def detachRedeemer(ctx: RedeemersContext, redeemer: Redeemer): Option[DetachedRedeemer] = {
-        val index = redeemer.index
-        val purposeOpt = redeemer.tag match
-            case RedeemerTag.Spend =>
-                ctx.inputs.lift(index).map(RedeemerPurpose.ForSpend.apply)
-            case RedeemerTag.Mint =>
-                ctx.mintingPolicyHashes.lift(index).map(RedeemerPurpose.ForMint.apply)
-            case RedeemerTag.Reward =>
-                ctx.rewardAddresses.lift(index).map(RedeemerPurpose.ForReward.apply)
-            case RedeemerTag.Cert =>
-                ctx.certs.lift(index).map(RedeemerPurpose.ForCert.apply)
-            case RedeemerTag.Proposing =>
-                ctx.proposals.lift(index).map(RedeemerPurpose.ForPropose.apply)
-            case RedeemerTag.Voting =>
-                ctx.voters.lift(index).map(RedeemerPurpose.ForVote.apply)
-
-        purposeOpt.map(purpose => DetachedRedeemer(redeemer.data, purpose))
-    }
-
-    @deprecated("Use attachRedeemer(Transaction, DetachedRedeemer) instead", "0.13.0")
-    def attachRedeemer(ctx: RedeemersContext, detached: DetachedRedeemer): Option[Redeemer] = {
-        val tag = detached.purpose.redeemerTag
-        val indexOpt = detached.purpose match {
-            case RedeemerPurpose.ForSpend(input)     => ctx.inputs.indexOf(input)
-            case RedeemerPurpose.ForMint(scriptHash) => ctx.mintingPolicyHashes.indexOf(scriptHash)
-            case RedeemerPurpose.ForReward(rewardAddress) =>
-                ctx.rewardAddresses.indexOf(rewardAddress)
-            case RedeemerPurpose.ForCert(certificate) => ctx.certs.indexOf(certificate)
-            case RedeemerPurpose.ForPropose(proposal) => ctx.proposals.indexOf(proposal)
-            case RedeemerPurpose.ForVote(voter)       => ctx.voters.indexOf(voter)
-        }
-
-        if indexOpt >= 0 then {
-            Some(
-              Redeemer(
-                tag = tag,
-                index = indexOpt,
-                data = detached.datum,
-                exUnits = ExUnits.zero
-              )
-            )
-        } else {
-            None
-        }
-    }
-
-    @deprecated("Use attachRedeemers(Transaction, Vector[DetachedRedeemer]) instead", "0.13.0")
-    def attachRedeemers(
-        ctx: RedeemersContext,
-        detached: Vector[DetachedRedeemer]
-    ): Either[DetachedRedeemer, Vector[Redeemer]] = {
-        detached.traverse(redeemer => attachRedeemer(ctx, redeemer).toRight(redeemer))
-    }
 
     /** Detach a redeemer from a transaction, converting index-based reference to value-based.
       */

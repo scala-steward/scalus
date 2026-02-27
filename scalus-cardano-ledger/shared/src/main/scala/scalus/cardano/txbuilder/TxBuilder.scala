@@ -976,27 +976,6 @@ case class TxBuilder(
         addSteps(mintSteps*)
     }
 
-    // -------------------------------------------------------------------------
-    // Deprecated Minting API
-    // -------------------------------------------------------------------------
-
-    /** @deprecated Use mint(script, assets, redeemer) instead */
-    @deprecated("Use mint(script, assets, redeemer) instead", "0.13.0")
-    def mintAndAttach[T: ToData](
-        redeemer: T,
-        assets: collection.Map[AssetName, Long],
-        script: PlutusScript
-    ): TxBuilder = mint(script, assets, redeemer, Set.empty[AddrKeyHash])
-
-    /** @deprecated Use mint(script, assets, redeemer, requiredSigners) instead */
-    @deprecated("Use mint(script, assets, redeemer, requiredSigners) instead", "0.13.0")
-    def mintAndAttach[T: ToData](
-        redeemer: T,
-        assets: collection.Map[AssetName, Long],
-        script: PlutusScript,
-        requiredSigners: Set[AddrKeyHash]
-    ): TxBuilder = mint(script, assets, redeemer, requiredSigners)
-
     /** Mints or burns native tokens using a script witness.
       *
       * This is the unified API for minting operations. Use the factory methods to create the

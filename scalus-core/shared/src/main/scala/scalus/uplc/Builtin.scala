@@ -12,7 +12,6 @@ import scalus.uplc.eval.*
 import scalus.utils.Macros
 
 import scala.annotation.threadUnsafe
-import scala.collection.immutable
 import scala.collection.immutable.ArraySeq
 
 case class BuiltinRuntime(
@@ -1363,11 +1362,6 @@ class CardanoBuiltins(
     }
 
     def getBuiltinRuntime(fun: DefaultFun): BuiltinRuntime = mkGetBuiltinRuntime(fun)
-
-    @deprecated("Use getBuiltinRuntime instead", "0.13.0")
-    lazy val BuiltinMeanings: immutable.Map[DefaultFun, BuiltinRuntime] = DefaultFun.values.map {
-        fun => fun -> getBuiltinRuntime(fun)
-    }.toMap
 
     /** A map of all UPLC builtins to their forced versions.
       *

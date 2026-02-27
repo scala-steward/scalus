@@ -17,10 +17,8 @@ import scalus.cardano.txbuilder.TransactionBuilder.*
 import scalus.cardano.txbuilder.TransactionBuilderStep.{Mint as _, *}
 import scalus.|>
 
-import scala.annotation.nowarn
 import scala.collection.immutable.SortedMap
 
-@nowarn("msg=SpendWithDelayedRedeemer .* is deprecated")
 private class TransactionStepsProcessor(private var _ctx: Context) {
 
     /** Transaction builder monad. Retains context at point of failure, if there's any.
@@ -100,9 +98,6 @@ private class TransactionStepsProcessor(private var _ctx: Context) {
 
     private def processStep(step: TransactionBuilderStep): Result[Unit] = step match {
         case spend: Spend => useSpend(spend)
-
-        case delayedSpend: SpendWithDelayedRedeemer =>
-            useSpendWithDelayedRedeemer(delayedSpend)
 
         case send: Send =>
             useSend(send)
@@ -458,21 +453,6 @@ private class TransactionStepsProcessor(private var _ctx: Context) {
                     }
             }
         } yield ()
-    }
-
-    private def useSpendWithDelayedRedeemer(
-        delayedSpend: SpendWithDelayedRedeemer
-    ): Result[Unit] = {
-        val utxo = delayedSpend.utxo
-        val validator = delayedSpend.validator
-        val datum = delayedSpend.datum
-        val witness = ThreeArgumentPlutusScriptWitness(
-          scriptSource = ScriptSource.PlutusScriptValue(validator),
-          redeemerBuilder = delayedSpend.redeemerBuilder,
-          datum = datum.map(Datum.DatumValue.apply).getOrElse(Datum.DatumInlined),
-          additionalSigners = Set.empty
-        )
-        useSpend(Spend(utxo, witness))
     }
 
     // -------------------------------------------------------------------------

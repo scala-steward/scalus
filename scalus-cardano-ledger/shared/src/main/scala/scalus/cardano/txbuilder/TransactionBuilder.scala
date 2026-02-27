@@ -860,16 +860,6 @@ object TransactionBuilder {
     // Transaction Modification Helpers
     // -------------------------------------------------------------------------
 
-    @deprecated("Use Transaction.withBody instead", "0.8.0")
-    def modifyBody(tx: Transaction, f: TransactionBody => TransactionBody): Transaction =
-        tx.withBody(f)
-
-    @deprecated("Use Transaction.withWitness instead", "0.8.0")
-    def modifyWs(
-        tx: Transaction,
-        f: TransactionWitnessSet => TransactionWitnessSet
-    ): Transaction = tx.withWitness(f)
-
     /** Ensure collateral return output is set when beneficial.
       *
       * Per Babbage spec (Figure 4), if script validation FAILS without collateralReturnOutput, ALL
@@ -966,9 +956,6 @@ object TransactionBuilder {
         )
         Right(newTx)
     }
-
-    @deprecated("Use tx.withBody(_.copy(fee = amount)) instead", "0.8.0")
-    def setFee(amount: Coin)(tx: Transaction): Transaction = tx.withBody(_.copy(fee = amount))
 
     def calculateChangeValue(tx: Transaction, utxo: Utxos, params: ProtocolParams): Value = {
         val produced = TxBalance.produced(tx, params)
@@ -1178,27 +1165,6 @@ enum TxBalancingError {
 // -------------------------------------------------------------------------
 // auxiliary types, extensions, helpers
 // -------------------------------------------------------------------------
-
-@deprecated("Use scalus.cardano.ledger.Utxo instead", "0.13.0")
-type TransactionUnspentOutput = Utxo
-@deprecated("Use scalus.cardano.ledger.Utxo instead", "0.13.0")
-val TransactionUnspentOutput = Utxo
-
-@deprecated("Use Credential instead", "0.13.0")
-case class StakeCredential(credential: Credential)
-
-extension (network: Network)
-    @deprecated("Use Network.networkId instead", "0.13.0")
-    def toNetworkId: Int = network.networkId.toInt
-
-object NetworkExtensions:
-    /** Convert integer network ID to Network */
-    @deprecated("Use Network.fromNetworkId instead", "0.13.0")
-    def fromNetworkId(networkId: Int): Option[Network] = networkId match
-        case 0                      => Some(Network.Testnet)
-        case 1                      => Some(Network.Mainnet)
-        case v if v >= 2 && v <= 15 => Some(Network.Other(v.toByte))
-        case _                      => None
 
 /** Append an element to a sequence, returning distinct values only and preserving the order of
   * elements.

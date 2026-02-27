@@ -1,10 +1,7 @@
 package scalus.cardano.txbuilder
 
-import scalus.uplc.builtin.Data
 import scalus.cardano.address.Address
 import scalus.cardano.ledger.*
-
-import scala.annotation.nowarn
 
 sealed trait TransactionBuilderStep
 
@@ -12,7 +9,6 @@ sealed trait TransactionBuilderStep
   *   - generally non-commutative, so the order matters
   *   - some are additive (e.g. [[Mint]]), some are not, e.g., ([[Spend]])
   */
-@nowarn("msg=SpendWithDelayedRedeemer .* is deprecated")
 object TransactionBuilderStep {
 
     /** Spend any utxo. An attempt to consume (reference or spend) the same utxo twice will error.
@@ -22,23 +18,6 @@ object TransactionBuilderStep {
     case class Spend(
         utxo: Utxo,
         witness: SpendWitness = PubKeyWitness
-    ) extends TransactionBuilderStep
-
-    /** Spend a utxo guarded by plutus script.
-      *
-      * The [[redeemerBuilder]] is invoked after [[TransactionBuilder.build()]], but before it's
-      * balanced by the low lever builder. As a result, the number and order of inputs, outputs,
-      * certificates etc. is predetermined.
-      *
-      * Use this instead of [[Spend]] when assembling the redeemer requires the knowledge of the
-      * transaction contents, e.g. to include the indices of inputs or outputs.
-      */
-    @deprecated("Use Spend directly", "0.13.0")
-    case class SpendWithDelayedRedeemer(
-        utxo: Utxo,
-        redeemerBuilder: Transaction => Data,
-        validator: PlutusScript,
-        datum: Option[Data] = None
     ) extends TransactionBuilderStep
 
     /** Send some funds/data to an address. Multiple identical steps are acceptable. */

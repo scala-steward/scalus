@@ -17,10 +17,6 @@ trait ToData[-A] extends Function1[A, Data] with CompileDerivations {
 @Compile
 object ToData extends ToDataOffchainApi {
 
-    extension [A: ToData](a: A)
-        @deprecated("Use Data.toData instead", "0.13.0")
-        inline def toData: Data = summon[ToData[A]].apply(a)
-
     /** Derives a ToData instance for type A
       */
     inline def derived[A]: ToData[A] = ${ ToDataMacros.toDataImpl[A] }

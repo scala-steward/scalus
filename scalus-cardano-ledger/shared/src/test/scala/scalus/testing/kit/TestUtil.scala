@@ -7,7 +7,7 @@ import scalus.uplc.builtin.{ByteString, Data}
 import scalus.cardano.address.{Address, ShelleyAddress, ShelleyDelegationPart, ShelleyPaymentPart}
 import scalus.cardano.ledger.*
 import scalus.cardano.ledger.ArbitraryInstances.given
-import scalus.cardano.txbuilder.{PubKeyWitness, RedeemerManagement, RedeemerPurpose, TransactionBuilder, Wallet as WalletTrait, Witness}
+import scalus.cardano.txbuilder.{RedeemerManagement, RedeemerPurpose, TransactionBuilder}
 import scalus.cardano.onchain.plutus.v1.PubKeyHash
 import scalus.cardano.onchain.plutus.v3.{TxId, TxOutRef, ValidatorHash}
 import scalus.cardano.onchain.plutus.{v1, v2, v3, ScriptContext}
@@ -95,37 +95,6 @@ object TestUtil {
             Utxo(input, output)
         }
 
-    @deprecated("will be removed", "0.13.0")
-    def createTestWallet(address: Address, ada: BigInt): WalletTrait = new WalletTrait {
-        private val testInput = Input(
-          TransactionHash.fromByteString(ByteString.fromHex("0" * 64)),
-          0
-        )
-        private val testOutput = TransactionOutput.Babbage(
-          address = address,
-          value = Value(Coin(ada.toLong)),
-          datumOption = None,
-          scriptRef = None
-        )
-        private val txUnspentOutput = Utxo(testInput, testOutput)
-
-        override def owner: Address = address
-        override def utxo: Utxos = Map((testInput, testOutput))
-        override def collateralInputs: Seq[(Utxo, Witness)] = Seq(
-          (txUnspentOutput, PubKeyWitness)
-        )
-        override def selectInputs(
-            required: Value
-        ): Option[Seq[(Utxo, Witness)]] = {
-            val available = testOutput.value
-            if available.coin.value >= required.coin.value then {
-                Some(Seq((txUnspentOutput, PubKeyWitness)))
-            } else {
-                None
-            }
-        }
-    }
-
     @deprecated("will be removed", "0.14.2")
     def getScriptUtxo(tx: Transaction): (TransactionInput, TransactionOutput) = {
         val (transactionOutput, index) = tx.body.value.outputs.view
@@ -164,23 +133,6 @@ object TestUtil {
         tx: Transaction,
         output: TransactionOutput
     ): Option[Data] = output.resolveDatum(tx)
-
-    @deprecated("will be removed", "0.13.0")
-    def runValidator(
-        validatorProgram: Program,
-        tx: Transaction,
-        utxo: Utxos,
-        wallet: WalletTrait,
-        scriptInput: TransactionInput,
-        redeemerTag: RedeemerTag = RedeemerTag.Spend,
-        environment: CardanoInfo = testEnvironment
-    ) = {
-        given CardanoInfo = environment
-        given PlutusVM = PlutusVM.makePlutusV3VM()
-        val scriptContext = tx.getScriptContextV3(utxo, RedeemerPurpose.ForSpend(scriptInput))
-        val appliedScript = validatorProgram $ scriptContext.toData
-        appliedScript.evaluateDebug
-    }
 
     extension (tx: Transaction)
         /** Get all script contexts for all Plutus scripts in the transaction.

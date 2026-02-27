@@ -4,7 +4,6 @@ import com.bloxbean.cardano.client.account as bloxbean
 import com.bloxbean.cardano.client.common.model.Networks
 import com.bloxbean.cardano.client.crypto.bip32.HdKeyPair
 import com.bloxbean.cardano.client.crypto.cip1852.{DerivationPath, Segment}
-import com.bloxbean.cardano.client.crypto.config.CryptoConfiguration
 import scalus.uplc.builtin.ByteString
 import scalus.cardano.address.Network
 import scalus.crypto.ed25519.{ExtendedSigningKey, JvmEd25519Signer, Signature, VerificationKey}
@@ -24,14 +23,6 @@ class BloxbeanKeyPair(override val underlying: HdKeyPair) extends ExtendedKeyPai
 
     override def verify(message: ByteString, signature: Signature): Boolean =
         JvmEd25519Signer.verify(verificationKey, message, signature)
-
-    // Override the deprecated sign method to use Bloxbean's signExtended directly
-    // for better compatibility with Cardano HD wallet signing
-    @deprecated("Use sign(ByteString) instead", "0.9.0")
-    override def sign(message: Array[Byte]): Array[Byte] = {
-        val signingProvider = CryptoConfiguration.INSTANCE.getSigningProvider
-        signingProvider.signExtended(message, underlying.getPrivateKey.getKeyData)
-    }
 }
 
 class BloxbeanAccount(val account: bloxbean.Account) extends Account:

@@ -39,19 +39,6 @@ class LucidKeyPair(bech32PrivateKey: String) extends KeyPair {
 
     override def verify(message: ByteString, signature: Signature): Boolean =
         JsEd25519Signer.verify(verificationKey, message, signature)
-
-    @deprecated("Use verificationKey.bytes instead", "0.9.0")
-    override def publicKeyBytes: Array[Byte] = cmlKey.to_public().to_raw_bytes().toByteString.bytes
-
-    @deprecated("Use the signing key directly", "0.9.0")
-    override def privateKeyBytes: Array[Byte] = keyBytes.bytes
-
-    @deprecated("Use sign(ByteString) instead", "0.9.0")
-    override def sign(message: Array[Byte]): Array[Byte] = {
-        val messageUint8 = ByteString(message*).toUint8Array
-        val signature = cmlKey.sign(messageUint8)
-        signature.to_raw_bytes().toByteString.bytes
-    }
 }
 
 class LucidAccount(

@@ -5,30 +5,6 @@ import scalus.cardano.ledger.*
 import scalus.cardano.ledger.utils.MinCoinSizedTransactionOutput
 import scalus.cardano.txbuilder.TransactionBuilder.ensureMinAda
 
-/** Helper class that creates a diff handler function for an existing change output.
-  *
-  * @deprecated
-  *   Use [[Change.changeOutputDiffHandler]] instead
-  */
-@deprecated("Use Change.changeOutputDiffHandler instead", "0.13.0")
-class ChangeOutputDiffHandler(protocolParams: ProtocolParams, changeOutputIdx: Int) {
-
-    /** Handles the diff by adjusting the change output at the specified index.
-      *
-      * @param diff
-      *   The value difference to apply (positive to add, negative to remove)
-      * @param tx
-      *   The transaction to modify
-      * @return
-      *   Either a [[TxBalancingError]] or the modified transaction
-      */
-    def changeOutputDiffHandler(
-        diff: Value,
-        tx: Transaction
-    ): Either[TxBalancingError, Transaction] =
-        Change.changeOutputDiffHandler(diff, tx, protocolParams, changeOutputIdx)
-}
-
 /** Utilities for handling change outputs in transaction balancing. */
 object Change {
 

@@ -14,8 +14,6 @@ object DefaultUni:
         def defaultUni: DefaultUni
 
     sealed abstract class LiftedUni[A] extends DefaultUni with Lift[A]:
-        @deprecated("Not used and will be removed", "0.13.0")
-        type Unlifted = A
         def defaultUni: DefaultUni = this
 
     case object Integer extends LiftedUni[BigInt]
@@ -45,10 +43,6 @@ object DefaultUni:
         type Unlifted = f.Unlifted => arg.Unlifted
 
     def defaultUniFromValue[A: Lift](value: A): DefaultUni = summon[Lift[A]].defaultUni
-
-    @deprecated("Use Constant.asConstant instead", "0.13.0")
-    def asConstant[A: Constant.LiftValue](value: A): Constant =
-        summon[Constant.LiftValue[A]].lift(value)
 
     given Lift[Int] with
         def defaultUni: DefaultUni = DefaultUni.Integer
